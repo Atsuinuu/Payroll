@@ -418,37 +418,6 @@ class DashboardForm : Form
     }
 }
 
-// ── Punch record from iclock/api/transactions/ ────────────────
-class PunchRecord
-{
-    [JsonProperty("emp_code")] public string EmpCode { get; set; }
-    [JsonProperty("first_name")] public string FirstName { get; set; }
-    [JsonProperty("last_name")] public string LastName { get; set; }
-    [JsonProperty("department")] public string Department { get; set; }
-    [JsonProperty("punch_time")] public string PunchTime { get; set; }
-    [JsonProperty("punch_state")] public string PunchState { get; set; }
-    [JsonProperty("punch_state_display")] public string PunchStateDisplay { get; set; }
-}
-
-// ── One row per employee per day ──────────────────────────────
-class DailyRecord
-{
-    public string EmpCode { get; set; }
-    public string FullName { get; set; }
-    public string Department { get; set; }
-    public string Date { get; set; }
-    public string ClockIn { get; set; }
-    public string ClockOut { get; set; }
-    public string BreakOut { get; set; }
-    public string BreakIn { get; set; }
-}
-
-class DepartmentItem
-{
-    [JsonProperty("id")] public int Id { get; set; }
-    [JsonProperty("dept_code")] public string DeptCode { get; set; }
-    [JsonProperty("dept_name")] public string DeptName { get; set; }
-}
 
 // ── Export Dialog ─────────────────────────────────────────────
 class ExportDialog : Form
