@@ -8,9 +8,11 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Newtonsoft.Json;
 using System.Linq;
-using System.IO;
 using ClosedXML.Excel;
 
+// ══════════════════════════════════════════════════════════════
+//  ENTRY POINT
+// ══════════════════════════════════════════════════════════════
 static class Program
 {
     [STAThread]
@@ -22,11 +24,14 @@ static class Program
     }
 }
 
+// ══════════════════════════════════════════════════════════════
+//  API CLIENT
+// ══════════════════════════════════════════════════════════════
 static class ApiClient
 {
     public static readonly HttpClient Http = new HttpClient();
 
-    public static void Initialize(string baseUrl, string token) 
+    public static void Initialize(string baseUrl, string token)
     {
         Http.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
         Http.DefaultRequestHeaders.Clear();
@@ -48,6 +53,9 @@ static class ApiClient
     }
 }
 
+// ══════════════════════════════════════════════════════════════
+//  SHARED MODELS
+// ══════════════════════════════════════════════════════════════
 class PagedResponse<T>
 {
     [JsonProperty("count")] public int Count { get; set; }
@@ -69,7 +77,27 @@ class Employee
             : Department?.ToString() ?? "";
 }
 
-// ── Login Form ────────────────────────────────────────────────
+class PunchRecord
+{
+    [JsonProperty("emp_code")] public string EmpCode { get; set; }
+    [JsonProperty("first_name")] public string FirstName { get; set; }
+    [JsonProperty("last_name")] public string LastName { get; set; }
+    [JsonProperty("department")] public string Department { get; set; }
+    [JsonProperty("punch_time")] public string PunchTime { get; set; }
+    [JsonProperty("punch_state")] public string PunchState { get; set; }
+    [JsonProperty("punch_state_display")] public string PunchStateDisplay { get; set; }
+}
+
+class DepartmentItem
+{
+    [JsonProperty("id")] public int Id { get; set; }
+    [JsonProperty("dept_code")] public string DeptCode { get; set; }
+    [JsonProperty("dept_name")] public string DeptName { get; set; }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  LOGIN FORM
+// ══════════════════════════════════════════════════════════════
 class LoginForm : Form
 {
     TextBox txtServer, txtUsername, txtPassword;
@@ -167,6 +195,7 @@ class LoginForm : Form
                 username = txtUsername.Text.Trim(),
                 password = txtPassword.Text
             });
+
             var content = new StringContent(payload, Encoding.UTF8, "application/json");
             var response = await client.PostAsync("api-token-auth/", content);
             var json = await response.Content.ReadAsStringAsync();
@@ -188,6 +217,7 @@ class LoginForm : Form
 
             ApiClient.Initialize(txtServer.Text.Trim(), token);
             Hide();
+
             var dashboard = new DashboardForm();
             dashboard.FormClosed += (s2, e2) => Close();
             dashboard.Show();
@@ -201,7 +231,9 @@ class LoginForm : Form
     }
 }
 
-// ── Dashboard Form ────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  DASHBOARD FORM
+// ══════════════════════════════════════════════════════════════
 class DashboardForm : Form
 {
     DataGridView dgv;
@@ -214,13 +246,10 @@ class DashboardForm : Form
         Size = new Size(1000, 620);
         BackColor = Color.FromArgb(18, 18, 18);
         BuildUI();
-
     }
-
 
     void BuildUI()
     {
-
         var toolbar = new Panel
         {
             Dock = DockStyle.Top,
@@ -228,122 +257,29 @@ class DashboardForm : Form
             BackColor = Color.FromArgb(28, 28, 28)
         };
 
-        btnLoad = new Button
-        {
-            Text = "Load Employees",
-            Location = new Point(10, 10),
-            Size = new Size(150, 28),
-            BackColor = Color.FromArgb(0, 200, 150),
-            ForeColor = Color.Black,
-            FlatStyle = FlatStyle.Flat
-        };
-        btnLoad.FlatAppearance.BorderSize = 0;
+        // Load Employees
+        btnLoad = MakeToolbarButton("Load Employees", 10, Color.FromArgb(0, 200, 150), Color.Black);
         btnLoad.Click += async (s, e) => await LoadEmployeesAsync();
 
-        var btnExport = new Button
-        {
-            Text = "Export Timecard",
-            Location = new Point(170, 10),
-            Size = new Size(150, 28),
-            BackColor = Color.FromArgb(0, 150, 255),
-            ForeColor = Color.Black,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9, FontStyle.Bold)
-        };
-        btnExport.FlatAppearance.BorderSize = 0;
+        // Export Timecard
+        var btnExport = MakeToolbarButton("Export Timecard", 170, Color.FromArgb(0, 150, 255), Color.Black);
         btnExport.Click += (s, e) => new ExportDialog().ShowDialog(this);
+
+        // Timetable Manager
+        var btnTimetables = MakeToolbarButton("Timetables", 330, Color.FromArgb(100, 80, 200), Color.White);
+        btnTimetables.Click += (s, e) => new TimetableManagerForm().ShowDialog(this);
 
         lblStatus = new Label
         {
             ForeColor = Color.Silver,
             AutoSize = true,
-            Location = new Point(340, 15)
+            Location = new Point(470, 15)
         };
 
         toolbar.Controls.Add(btnLoad);
         toolbar.Controls.Add(btnExport);
-        toolbar.Controls.Add(lblStatus);
-
-        var btnTimetables = new Button
-        {
-            Text = "Timetables",
-            Location = new Point(330, 10),
-            Size = new Size(120, 28),
-            BackColor = Color.FromArgb(100, 80, 200),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9, FontStyle.Bold)
-        };
-        btnTimetables.FlatAppearance.BorderSize = 0;
-        btnTimetables.Click += (s, e) => new TimetableManagerForm().ShowDialog(this);
         toolbar.Controls.Add(btnTimetables);
-
-        //⣿⣷⣀⡀⢠⠀⠈⠙⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣇⠙⣶⠀⢀⠀⠤⣉⠛⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣷⣤⠣⢈⢎⡤⢈⠓⢦⣌⡙⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣏⠻⣿⣆⡸⢜⡡⢊⠀⠻⣿⣿⣾⣷⣽⣧⢎⡻⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣦⡍⢻⣷⣌⠖⠀⠀⠀⠈⢙⠛⣿⣿⣿⣿⣶⣧⣖⣯⡙⢮⡷⣯⢿⡿⣟⡟⢯⠻⡍⠶⡛⢿⠛⠿⣿⠟⡿⠿⠿⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠿⣿⢿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⣿⣷⠊⢿⣿⣄⠐⠀⢂⠈⠰⡘⢿⣏⠻⣿⣿⠟⣆⢏⢇⠳⢎⠷⡹⠬⡝⢪⠑⠌⠱⠌⠂⠉⠒⢠⠂⢈⠁⣂⡄⠈⡐⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠁⠀⠉⠉⠁⠀⠀⠈⠛⠿⡿⠿⠻⠿⠿⠿⠿⠿⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟⠋⣋⡤⣖⡻⢌⡠⠎⣠⣾⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⣿⡿⣿⡿⢿⣟⣿⣦⡀⠘⡀⠀⠀⠘⠢⠘⢄⠉⠲⠌⠊⠠⠌⢪⠁⠘⡤⠐⡆⠈⢠⠂⢌⠣⠀⢩⡗⣾⣇⢻⠙⠄⡀⢁⠂⠠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠉⠙⠛⠻⢿⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠿⢛⣋⣭⡖⣠⡾⢉⡰⡡⠙⢊⣴⣾⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣦⡒⢽⣮⣟⢷⣦⣄⡀⠀⠂⠄⠈⡀⠁⠈⠀⠐⠈⠀⠍⠆⢱⠀⠁⡐⣄⢹⡀⢷⡆⣅⢃⠈⠀⠀⠀⠀⠐⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⠀⠌⠂⠱⢠⢨⠌⡐⣱⠟⢩⣻⠋⢸⣿⣿⣿⣿⣿⠿⡿⠿⠿⠟⢛⣛⣿⣭⣴⣶⠞⢛⡛⢉⣼⠋⠔⠋⠁⣠⣶⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣄⣈⠻⣧⣙⠟⣿⢷⣦⣄⡀⠀⠀⠀⠀⢀⠀⠀⣠⡀⣀⡰⢷⡌⠺⣏⢳⠀⠙⠈⡜⢄⠘⢂⢠⠂⠰⠆⠀⠀⠂⠀⠀⠀⠀⠀⠲⡇⠘⡀⠠⡐⠀⡌⠂⠠⠀⠀⠀⠀⠀⠀⡀⠀⠀⠀⠀⠀⠐⠀⡄⠀⠙⠈⡌⠐⠰⢣⡾⢓⢣⡠⠃⢈⣄⠠⠡⠐⡠⡔⢲⠆⣿⣿⣿⣿⣿⣿⠍⣾⣿⠃⡩⠒⢀⠔⣠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠛⠻⠦⣭⢛⠪⣷⡙⠿⣿⣿⡝⣶⣶⢦⡻⣶⣬⢿⡾⢏⠣⣅⠈⠯⠠⠁⢂⢣⡜⠎⢇⣄⣄⠃⠀⠀⠀⠀⠀⠀⡀⠐⡠⠁⢁⠀⠀⠁⡀⠄⠀⢱⡐⠀⠰⠀⡅⠁⠀⠈⡄⡀⠐⠀⠆⠀⠄⠀⠀⠻⠏⣴⣄⠈⠄⣸⢠⠃⡘⢡⠀⡞⡩⡀⢰⡫⠐⢠⠋⣠⢞⡿⣿⣿⠟⡡⠞⠃⣉⠤⠁⢈⣵⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡤⠐⣢⡉⠓⡻⠅⢳⣦⣌⡝⢿⣿⣷⣧⡘⠓⠮⢝⣦⠁⠌⢀⣷⡄⢁⡀⢃⠉⢻⠈⠹⠞⣗⠀⢦⠀⠀⠀⠀⣰⡀⠁⠀⠠⠀⠆⠀⠁⠀⠀⡌⠀⠀⠀⡃⠁⠀⠈⠄⡀⠁⠀⠈⠀⠂⢨⢀⡀⠁⢈⢛⠁⡜⠘⣡⢃⡔⠴⠞⠰⠋⣴⢃⡞⢁⢆⠁⢨⠃⣀⠜⠁⠀⠠⠐⠀⠔⣀⣤⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⢦⣍⠦⢉⡻⢶⣿⣾⣿⣾⢟⡳⡙⠿⣤⡀⣄⠙⢷⡸⣄⠈⠙⠀⢻⡄⢰⠀⠁⠀⢧⣱⢰⡈⢴⡘⣆⡏⣿⣧⡀⢆⠠⠀⠀⠀⠀⠀⠀⠂⠰⣄⠀⠱⠀⠀⠉⠀⠀⠀⠃⠀⢀⢀⣼⠠⡇⡄⡄⠀⣴⡡⢀⢧⡏⡎⡶⠋⠘⠘⡁⣾⢆⣿⠏⣀⣥⠞⡁⠄⡤⢊⣠⣠⣶⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠋⠀⢀⡠⣤⣥⣝⣻⡾⢯⣍⠛⠿⣽⣮⡳⡆⠦⡇⢦⠘⢻⣼⠀⢠⢀⠀⠁⠘⡀⣦⣼⡄⢻⣇⢷⠞⠃⢻⠄⡟⣿⣳⡼⠀⠀⠀⠀⠀⠀⠀⠀⠄⠈⢡⠀⡀⠀⠀⠀⠀⠀⠂⠀⣌⡞⣿⣟⡄⡡⢼⡇⣿⢣⠉⡸⠀⠝⠁⢠⠀⣜⠰⢫⠊⠁⠜⡿⣿⣿⣿⣟⣵⡿⢿⣿⣿⢟⣽⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣤⠥⠆⠈⠛⣛⣿⣿⢿⣿⣎⠤⣄⢘⠻⢧⠁⠢⠁⡜⢠⡎⢙⣀⢫⣬⣧⠙⠳⡝⣿⣿⣷⠪⠛⢀⠂⠀⡀⡌⠳⢻⣧⣏⣷⣀⠀⠀⠐⠀⠀⠠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⢠⣿⣟⣿⡏⣽⡇⡆⢱⡿⣋⣧⠃⣰⡆⢀⡼⠀⠋⣠⣿⠆⢊⡞⡚⣹⢩⣿⣺⣯⣾⣿⣋⣵⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣏⡀⣰⣾⣿⣿⣿⣿⣿⠷⠸⡿⣆⠈⠷⣷⠀⢸⣰⡇⠁⠈⠇⠁⣏⣷⡸⣎⣿⢶⣹⣎⣿⣿⣿⣇⠀⠇⢸⠇⠁⠸⣿⣸⢸⢹⣿⠀⠀⠀⠸⢀⠀⠀⠰⠀⠀⠀⠀⠀⠀⠀⠀⢹⣿⣹⣿⢾⡿⠀⡁⠁⠈⠹⢁⡏⣾⣿⣰⠏⠰⠀⠰⢸⠀⠀⢀⡎⡸⢱⢏⣹⢏⣿⣿⣱⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡥⠟⠿⠿⠿⢟⡻⠯⠵⣀⠑⣜⢧⠂⣿⣆⣈⡛⢁⣈⠐⢍⡲⠤⠬⣝⡲⢭⣷⣝⠿⣾⡿⣿⣿⣆⠈⠈⠀⢠⣿⡽⣿⡈⢿⡟⠀⠀⠀⠰⢰⡄⠀⠀⢀⢷⠀⠀⠀⡀⠀⠈⣏⡿⣿⣿⢾⣧⠐⡎⢀⠏⢠⢏⣾⣿⡯⣲⢃⢆⣡⣴⣶⠘⢠⢋⡔⢱⣿⢯⠇⢈⡜⣿⣿⡿⢛⣷⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⠁⠀⢀⣀⣻⣭⠳⡘⣤⠰⣤⡳⣾⡢⣓⣤⣤⣉⣦⣼⣭⣻⠶⠯⠷⣒⠤⠌⡱⢦⣌⣿⣮⣿⣻⣿⢿⡀⠀⠀⠀⣿⣷⡹⣷⡣⢻⣼⢣⢀⢰⠰⣶⡄⠀⠌⢎⣀⣴⡀⡀⠐⢠⡟⣞⣿⣿⢾⣏⠀⠑⠦⠀⣹⣾⣿⢻⣱⣳⠿⠫⠇⣠⠷⠊⣰⡼⣁⣬⠆⠰⢊⠂⣴⢟⣭⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣟⠛⠀⣴⢾⡿⢽⣽⣷⣜⢶⣝⢿⣏⠤⣻⣿⣿⣿⣿⣿⣿⣿⣿⣷⣿⣯⣖⣫⡛⡾⣝⣪⣟⠺⣷⣟⣾⣿⣷⡀⢀⢲⡼⣿⡰⣽⣧⠻⠹⠸⣏⢼⣾⢹⠃⠀⢦⡸⠁⢿⣇⢹⡇⢻⡇⣯⢻⣿⡞⡏⠀⠀⢀⣴⣿⣿⢳⡿⣟⣥⠞⣰⢗⡣⡐⣣⣙⣑⠛⣡⡵⠶⢫⠞⢃⠎⣾⠛⠉⠹⠿⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠏⣀⠐⣿⠛⢷⣘⢦⣸⣷⣯⡳⣍⡳⣭⡛⣿⣿⣿⣿⣿⢿⣟⠿⠿⠷⠀⣉⠉⡛⢻⣷⠾⣽⣻⣷⣯⣛⣿⣿⣧⣷⣞⣮⣻⣿⡇⣝⡏⣆⠑⡄⠉⠁⢁⠈⣱⡀⠀⡳⡈⡄⡏⢲⡇⢸⡇⣿⢹⣽⣣⣤⣄⢃⢾⣿⣿⣟⣿⣿⣳⡶⠟⣡⠾⣋⠥⣚⣯⣿⣿⡷⢦⡴⣶⣼⡟⣡⢀⡶⢁⡀⠀⠀⠨⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⡿⢿⡉⣅⣰⢦⣁⣨⡁⠤⣛⠫⢿⣯⣟⠿⣦⣽⣳⣷⣮⣙⣫⡭⠭⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠈⠂⠉⠓⠽⢻⢿⣷⣿⣿⣾⢱⣏⣿⣼⡄⠉⡔⠀⠸⡠⡟⠀⢯⠁⠀⠰⢠⠳⢐⣈⠃⣎⠟⣿⣷⢹⣇⣿⣟⣾⣿⣿⡿⣫⣷⣟⣵⢾⣯⣾⣿⣷⠿⠿⠿⣿⡿⢿⣿⣿⠿⠏⣶⣶⣾⣷⣿⣯⣔⠂⠀⣈⠙⢻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⡿⠆⠀⠨⣉⠓⠶⠄⢏⡱⢬⡙⣳⣴⣯⢽⣚⣭⣻⡿⣿⣶⡢⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠛⣿⣿⣿⣎⣏⣿⣼⡿⣴⠃⠀⣇⢻⠀⠃⠘⠇⡔⣄⡌⠆⡄⡈⠀⢌⢀⢿⣿⣿⣿⣿⣿⣿⢏⣫⣾⠿⢫⠞⠁⠿⠞⠉⠈⠀⠂⠉⠑⠒⠉⣙⣛⣶⣿⣯⣥⡯⢿⣫⣿⣿⣿⣿⠀⢬⠓⣠⠘⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣿⡦⣐⠈⡄⢉⢻⣴⣈⣧⠈⠛⢍⡉⠪⡙⠁⠙⠫⠑⠉⢋⡙⣓⢤⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣶⣿⡶⠀⠀⠀⠀⠀⠈⠻⣿⣿⣿⣷⣿⣏⣿⢃⣥⠎⠈⡀⠟⠁⠈⡀⡏⢣⡌⢳⠉⠄⢺⣾⡞⣿⣿⣿⣿⣿⡿⠋⠘⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣽⡿⡿⠯⠥⠴⣾⠟⣫⣾⣿⣣⡞⠈⠐⡡⢦⡄⣩⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⡕⠂⣁⠀⠘⠤⠶⢮⡉⠒⠄⢀⣀⠈⠀⠀⠒⠦⢄⣉⠻⣶⣿⣮⣿⣦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣿⣿⣿⣿⣿⡽⢯⢆⣠⢶⡁⠣⠰⡲⡀⢈⣌⢦⠈⣿⢰⣿⣿⣿⣿⣿⣿⡿⠇⠀⠀⠀⠀⠀⠀⠀⣀⣤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⣾⣿⣻⣟⣓⣲⣿⣿⡷⠗⣈⣠⠎⣐⠿⣃⠾⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⡿⠟⠋⣀⠈⢁⡀⠀⠈⠀⠤⣈⠀⠀⠐⠈⠂⠁⠂⢄⣩⣭⡳⢿⣿⣿⣿⣇⠀⠀⠈⢦⡁⠂⠀⠠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢹⣿⣿⣿⣿⢣⡤⡿⡵⡛⢠⠀⣸⢇⠃⠚⠛⠸⡷⢉⢿⣿⣿⣿⣿⣿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠈⠻⠛⠃⠀⠀⠀⠀⠀⠀⠀⠀⡀⠀⣯⣼⡿⠗⠿⠿⠿⢗⣺⣽⠿⠋⣡⠖⠁⠚⣡⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⡿⠇⠀⠘⠀⠀⢈⠒⠄⡀⢀⡁⢃⣀⠀⠀⠀⠀⠀⠠⢤⣊⡉⢟⣿⣿⣿⣿⣆⠀⠈⢆⡁⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⣿⣽⣿⡿⣣⣹⡵⠟⠟⠰⠂⡈⠆⠃⣠⡷⣷⣻⣼⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⢀⠂⢌⠀⠀⠰⣯⣿⣷⣾⣉⣖⣋⣌⠹⠵⠯⠔⢀⡴⢒⡹⢿⣯⢿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣤⡀⠀⠂⠄⠀⠈⠨⢉⠂⠔⢢⠤⡀⠀⠄⠈⠑⠠⠐⠤⠬⡑⠲⣾⢷⣿⣿⣆⠀⠈⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠨⣹⣿⣟⣿⣟⢏⡶⣻⡯⢣⣮⢹⣀⢩⢰⣽⠨⣳⣽⣿⣿⣿⠟⠀⠀⠀⠀⠀⠀⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡰⠌⡿⣌⠀⠀⢘⣿⣿⣿⣿⣿⠿⠿⢗⠠⣴⠂⢀⠉⢰⠟⡐⣯⢀⣾⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⡒⠀⠀⠀⠀⠡⠀⠄⢂⠒⣄⢒⡠⢄⠐⠀⠀⠁⠀⠹⠤⠢⣀⠪⡅⠙⢿⣿⣧⣀⠀⠈⠂⢀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠠⡒⠄⠀⠀⠀⠀⢸⣿⣿⣿⣟⣯⡿⢊⡿⣁⣘⠣⢎⡑⣨⣰⡝⣿⣽⣿⣿⣿⣯⡀⠀⠀⠀⠀⢤⡐⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠏⡵⠃⠀⢀⣼⣿⣿⣿⣿⣿⣿⠿⢟⡋⠀⠀⢀⠲⣛⠛⠙⠋⣠⡾⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⠧⠁⠀⠀⡀⢂⠌⠢⣉⠟⣌⢧⡘⢾⣜⡒⠌⠐⠂⠠⢭⣐⡂⠃⠘⠕⣢⣀⠻⣟⣻⣶⣬⣅⣈⡑⠒⠐⠂⠐⠒⣒⣀⣡⣤⡄⠀⠀⠀⠀⣻⡿⣿⡿⡯⢙⣾⡛⡫⣾⠆⠠⠶⢽⣠⡛⣽⣙⢿⣿⣿⣻⡷⠀⠀⠀⠀⠈⢳⡘⠆⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣡⠎⠁⠀⣠⣾⣿⣿⢿⣛⣿⡽⢃⣌⠡⠐⠀⠀⠄⣠⠴⡎⡴⠌⠂⢡⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⢦⠀⠀⠀⢰⣁⣎⡱⠷⣾⣦⣄⣈⣡⢤⢠⡐⠀⠂⠡⠤⡠⢌⣉⠉⠀⠐⠉⣡⣩⡅⢎⠹⢿⡿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣀⢀⡴⢂⠐⠉⠼⠏⣿⡧⡏⡹⣵⣵⠋⠔⢐⣡⢐⠬⠋⢳⢓⡘⢾⣷⡿⡧⠀⠀⠒⠠⣀⣄⣀⡐⠠⠀⠀⠀⢀⣀⠀⠠⠔⠊⠄⣒⣠⣾⣿⡿⠟⠉⣉⣉⠒⢐⠆⠀⠀⠤⢐⢀⣊⠉⣉⣀⣄⠠⠘⢂⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣦⠀⠤⠐⠮⢿⣿⣿⣷⣶⣭⣭⣋⡁⡊⢥⣈⡵⠂⠀⠠⠀⠢⠒⠦⠈⠒⢂⣀⠀⡟⢣⠚⠍⢭⣭⣟⣻⣿⣿⣿⣿⣿⣛⡿⠟⠀⠀⠀⠀⠀⠀⢟⡟⢐⠀⠘⠷⠉⡰⠃⠋⣐⠁⢺⣛⡚⠲⡍⠸⡝⠡⠡⠀⠀⠀⢀⠸⢿⣿⣿⣿⣷⣶⣤⣤⣀⠤⣴⣶⣶⡾⠿⠿⠛⠉⠀⡤⠟⣉⠀⠈⣄⠂⣡⠖⣉⣥⠎⣡⣓⣡⠎⠄⠐⠈⢘⣻⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⡁⢉⠀⠀⠛⣿⣶⣿⣿⣿⣿⣿⣯⡵⣉⡒⠖⠋⠡⢖⡐⠀⠁⠲⢷⣄⣮⣉⠢⢀⠈⠈⠉⣰⠮⠍⣶⠭⢿⢯⣽⣿⣿⣿⡷⠌⠁⠀⠀⠀⠀⠃⡚⠅⢀⣀⢯⠞⢓⠃⠴⣃⠨⠖⠁⠩⣽⡛⣖⡈⠑⡄⠀⠀⠀⠀⠀⣻⣛⠿⣿⡿⣿⣷⣿⣯⣟⣿⡛⢋⠑⢂⡠⠂⣀⠔⠃⣀⠀⠀⠒⣡⣬⣥⣯⣿⣿⣻⣿⣿⣿⣇⣐⣊⡡⢀⣺⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣿⣤⠁⠎⡉⠓⢤⢻⣏⣿⣿⣿⡿⣿⣭⣑⡘⢂⠋⠳⠤⠌⠛⢤⣀⠂⡀⠁⠄⣒⠢⢙⣊⣀⠴⢍⣓⠐⢫⡿⣿⣭⣿⣯⣵⡰⠖⠀⠀⠀⢀⠴⠀⠀⠀⠴⠉⠉⠄⠁⠐⡸⢧⡠⠄⠆⠠⢁⣆⢢⡗⡘⠈⠄⠀⠀⠀⢘⡻⣿⣿⣷⣯⡳⣭⣃⡈⠄⣀⠀⢀⡄⠁⠀⠊⠥⢐⠥⢠⣤⣤⢘⡻⢋⡩⠵⢋⣥⠿⢿⣿⢿⣫⣷⣿⣯⠥⠤⠿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⡛⠂⠖⠤⡑⠈⢭⣍⣻⣯⣭⣿⣽⣮⣳⣏⣍⣂⠓⡲⢎⣓⣀⣈⡒⡉⠷⠖⡒⢀⠦⢶⠀⠉⢑⡲⠬⣉⢤⡤⣦⠬⠡⣄⠀⠁⡀⢀⠤⣗⠈⠀⠀⠀⠀⠘⠄⠀⢂⡈⠇⢠⠆⣁⠣⠢⡀⠀⠀⡐⠂⠀⠀⠙⡄⣐⠀⠀⠉⢙⠺⢷⣶⣛⣛⠓⣀⠀⠒⠅⢂⠄⠁⣠⡴⠚⢅⣚⣿⡫⣭⢯⣐⣻⣾⡟⠭⢶⣾⣿⣾⣿⡿⠿⢋⡡⢴⠶⠛⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣟⡛⠂⠐⠠⠐⠂⠄⣂⠤⡄⠚⢭⣿⣯⣍⣒⠎⠔⠣⠔⡳⢺⠼⠃⢉⡤⡴⠤⢌⡁⢂⡀⠺⠓⣲⣬⢭⣤⣦⡻⢺⣟⠳⢀⣢⣔⢾⣛⣴⠍⠐⠄⠀⠀⠀⠀⠀⠠⢀⡠⠸⠡⡀⠀⠠⠁⠀⠀⠈⠀⠄⠀⠄⠀⠀⠻⡶⠤⠄⡄⠛⠮⣥⡦⠤⠖⢈⠹⠃⠔⡠⣊⠐⢒⡨⡵⠻⠛⢷⣭⣷⣯⣭⣭⡷⠾⣲⣿⣿⣿⡿⢛⣵⠟⣁⣤⣠⠄⢺⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⣿⣿⣗⡢⠌⣀⡉⠔⠀⡠⢄⠩⠉⢐⣈⣩⢍⡒⠊⠭⢁⣋⠠⠀⡲⢺⠭⢶⣲⣙⠋⠀⠤⣠⣽⣧⣭⢿⡶⠮⠯⣤⡠⠝⣿⣷⣶⣉⡞⣒⣩⠿⣁⠬⡄⠀⠀⠀⠀⠘⠀⠀⠄⠀⠀⠀⠀⠠⠐⠂⠀⠀⠀⠀⠀⠔⢈⣧⣮⣗⣂⠘⠻⠁⣤⣒⢶⣛⣓⣀⣀⠉⢁⡨⠅⣲⢛⣥⠾⣻⠯⣛⣯⣭⢿⠿⢿⣿⡭⠟⣫⣵⣾⣿⠃⢉⣁⣾⣵⠾⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⡿⣟⠋⠁⠀⡀⠌⣉⢁⡐⢂⡤⢭⣝⣋⣉⡭⡙⠝⠎⢲⠠⢆⡡⣐⠢⠬⠌⣓⠓⠲⢶⣒⠈⣽⣻⠟⣋⣶⣛⣲⣨⡝⠓⢀⡈⣛⠫⣭⣙⡛⣿⣆⡀⠠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣰⡿⠛⣿⣿⣿⣯⡗⢭⡐⠚⣩⣝⣻⣾⢁⡀⠄⠠⠶⠖⠛⣡⠽⠶⣛⣽⣿⣿⣿⡿⣭⣅⣚⣛⣿⣿⠟⣑⣾⣿⣿⣭⣤⣯⢽⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⠻⡌⠂⠀⠐⠈⠘⡀⢣⡔⣫⣽⢿⣻⠶⠲⠀⠩⠉⣍⢂⡑⣈⠐⡡⢄⠀⠜⠔⠊⣭⠓⣢⠾⣟⣛⡿⠶⠬⠛⠞⠛⣿⣿⣖⠿⠿⢿⡿⣫⣿⣿⣯⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢐⣻⣿⣯⣿⣯⣔⣗⢚⠉⢐⣡⢶⣈⠶⣮⣍⢛⡩⠏⠵⣋⢉⡩⢽⣿⠿⢷⣬⣫⢥⣶⣿⣿⣿⣿⡿⢟⣻⣵⣿⣿⡿⣯⣴⠦⣻⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣿⡡⠐⡀⠠⠀⠩⢎⡝⡃⠉⠐⣀⠢⠁⠀⣀⡤⣭⡥⡔⢢⠒⡄⠫⠔⣊⠜⡰⢨⣉⠴⢞⣷⣯⣤⡄⠈⣉⣀⣀⠮⢤⢀⡭⣌⠀⠈⣲⣿⣿⣿⣿⣿⣿⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣬⣿⣿⣯⣭⣽⣾⠦⣀⡈⢥⠥⠨⠞⣭⣩⣷⣭⠥⢒⣤⣲⣮⡿⠾⢙⣂⣷⣾⡿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⢯⡵⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⣯⣐⠃⠄⠁⠐⠠⢸⣜⣉⡩⢐⣐⣒⣫⣙⡳⣾⡷⢓⣭⣒⡭⢎⡱⡘⠤⢋⠴⠡⠒⢨⣽⣾⣿⣷⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⡶⣾⣿⣿⣿⣿⣿⣿⣿⣿⣤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣼⣿⣿⣿⣷⢮⣧⠚⠷⣶⠭⢿⣒⡾⠶⠾⠿⣿⣟⣳⡲⠭⢖⠓⢶⡩⠭⣵⣲⠶⣻⢳⢫⢷⣻⡶⣶⣾⣿⣿⣿⢿⣿⣿⠿⠿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⠛⡄⠡⠈⠄⡁⠀⡀⠀⠒⡀⢀⠀⠒⠒⣡⣶⡏⠵⣛⣚⣉⡭⠭⠤⠶⢒⡒⡒⣓⡛⣽⣯⣯⡿⢿⣿⣿⣿⣿⡿⢛⣭⣿⣿⣛⢻⣿⣿⣿⢿⣿⣿⣿⣿⣿⣿⣿⣶⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣰⣿⣿⣿⣿⣿⣿⣿⣷⣤⣭⣥⣤⣤⣶⣄⣈⣉⣭⣭⣽⣿⣿⡭⡤⠴⣀⣉⣛⠒⠧⢻⡔⣦⢋⠲⢭⡷⣷⣾⣿⣿⣿⣿⣿⡵⡾⡽⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⡳⠌⠄⢃⠒⢀⠀⠠⠙⠦⠙⣀⣀⡤⠭⠍⣒⡺⠭⠝⣒⣲⡾⡽⢉⠃⠉⠀⢁⠂⠭⠔⠚⣉⣮⡷⢴⣚⣻⣭⣾⣷⢿⣾⣾⣿⢟⣿⣫⣷⣿⣽⣿⣷⣟⣿⡿⣻⣽⢟⣥⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⣿⡿⣶⣿⣿⣟⢿⣿⣶⣾⣾⢻⣿⡿⢿⣿⣿⣿⣿⣿⣿⣛⠿⣿⣿⣿⣿⣟⣖⣲⢢⢭⣭⣒⣒⣨⠭⢟⣛⠿⣿⣿⣿⣿⣿⣋⣳⣽⡶⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣿⡛⠌⡐⠀⠐⣀⡈⠥⠒⣚⡩⢅⣂⠰⠐⠉⠁⣠⠶⢮⣟⣻⡵⠊⠁⢀⡂⠡⠄⢒⣂⡬⣵⠻⢴⣾⡽⣿⣿⣿⢿⡿⣟⣿⣟⣿⢿⣻⣽⣿⣽⡿⠽⢿⢿⣱⠟⢋⡸⣩⣞⡿⡀⠀⠀⠀⠀⠀⣄⢶⡳⢷⣝⢿⣳⣝⣿⣿⣿⣿⣿⣯⣻⣭⣻⣛⡻⢯⣛⣻⠟⣿⠯⣭⣝⣒⡲⠬⠬⣁⣉⡊⠵⢪⣕⣏⣿⣿⣿⣶⣭⣵⣲⠮⢟⣋⡭⣼⣗⣾⣽⣿⣿⣿⣿⣿⣿⣿⣿
-        //⠧⢉⡀⠐⠀⠉⠀⠀⠀⠁⠤⠝⠛⣈⡁⠌⡨⢱⢎⣻⡿⢯⡥⢒⠪⣉⡤⠴⠒⣊⡭⠖⠋⣀⠴⣛⠍⣼⠟⡹⠕⢏⣾⠿⢟⣿⠷⠿⢟⠿⣛⣴⡾⢋⠕⣢⣢⢴⢟⠽⢃⠌⣵⠃⠀⠀⠀⠀⢠⠛⠳⢏⠲⣍⣕⢗⢟⡾⣿⣿⡻⣿⣿⣻⢿⣷⣾⣶⣶⣾⣮⣽⣿⣿⣌⡛⢭⡹⢍⡳⠴⣮⢭⣝⣒⡒⠬⣍⡛⠿⣿⣿⣿⣿⣿⣷⣮⣍⣂⠽⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⠉⠀⠀⠀⠀⠀⠆⠁⡈⠰⠀⠎⠷⠾⢈⡰⣀⠏⣎⠱⡈⠇⣰⠾⣉⣷⠎⣱⠏⠱⢀⡰⢏⡰⠏⣁⡾⢱⣾⣷⢾⡏⣸⡱⢉⣰⢷⠏⣰⣹⣿⡿⢉⠶⠿⠹⣱⢏⠰⣰⢆⢾⠁⠀⠇⠀⠀⢀⠀⠆⢶⣏⢿⣆⢹⡎⡆⢈⢎⢿⢿⡏⢿⣿⣿⣏⣹⣿⣿⣏⣿⣿⣹⢿⣇⡉⢶⠿⣎⢷⡿⡶⢿⣾⣏⣿⣿⣿⣿⣹⢶⣉⡹⢿⣿⣆⣀⡶⣆⢷⣆⡹⣿⣿⣿⣿⣿⣿⣿⣿      
-        //        ⠠⢀⠐⠈⣀⢎⡹⣐⠆⢚⣠⠵⠊⣡⣶⠿⡫⢔⡩⢒⠭⢒⣡⠶⡡⣫⠞⡡⢞⣱⠟⡵⠋⡴⠫⣾⠟⡵⣫⡾⠛⠙⢥⠐⠉⠂⠊⠘⠙⠉⠈⠘⠁⠀⠀⠀⠀⠀⠀⠀⠐⠀⠷⠘⣔⢍⡳⡊⢿⣎⠫⡻⡄⡻⢷⡙⠿⣷⣭⣝⡛⢦⣉⢽⡛⢥⡲⣍⡂⠝⡛⠾⢷⣿⡿⣿⣿⣿⣿⣿⣿⣿⣵⣦⣭⣗⡪⢝⡛⠾⣽⢿⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⠀⠄⡀⠄⡀⢃⠐⠈⠁⠂⠀⢀⠠⡄⢖⠥⣚⣭⣖⠤⠚⣫⠕⣭⡶⠟⣫⣵⣺⣭⡳⢏⡴⡡⢪⡵⡫⣡⠞⣠⠞⣡⢞⢄⡜⡼⢁⡴⢫⣃⠆⠀⠀⠀⠀⠀⠀⠂⠀⠀⠀⠀⠀⠀⢀⢀⠀⢀⠀⠀⠈⢀⠀⠁⠀⠀⠈⠻⡔⡷⡹⡹⣄⡹⣆⢹⣻⢿⣻⢦⡻⢷⣭⡲⣝⠿⣿⣷⣾⣷⣶⣦⣹⢿⠿⣦⣽⢿⣿⣿⣟⣿⣿⡿⡝⣳⢮⣕⡢⣍⡻⢿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⠉⠒⣁⠂⡀⠀⠀⠀⠁⠀⠁⢀⡤⠚⠱⣾⣿⡿⢁⡤⣚⣵⣾⠏⣒⣉⡼⢒⢟⣳⢏⡾⢊⡼⣣⠟⡵⢃⡼⢁⡼⣱⢋⢌⡜⣰⢯⣜⣧⢳⣞⡭⢃⢤⡆⢊⡅⣀⠀⢎⡄⣀⡄⠀⠉⠈⠣⠀⣠⠄⡀⣒⠀⣈⠀⠀⢂⡤⣜⡇⡇⢱⢸⢹⣮⢫⡳⡹⣮⡣⡌⣷⣼⣿⣶⣽⣮⡻⣿⣿⣿⣿⣿⣿⣿⠿⠿⢷⠶⣭⣿⡻⢾⠳⠧⣝⣫⠻⣝⡳⢬⣓⡮⣟⢿⣿⣿⣿⣿⣿
-        //⢌⡱⢀⠞⠰⢂⠐⠀⠀⡠⠖⠁⠀⠀⡀⢤⠞⠵⣩⣾⠿⣉⣠⣶⠿⠁⠔⣡⠾⢉⡞⣠⢧⡳⢍⡞⢁⠞⣠⢏⣾⢃⠎⡜⣼⢯⣳⢞⣞⣳⣟⣋⣴⠇⢊⡭⣚⣥⣶⢟⠀⠜⡄⠀⢈⡀⢐⠦⢦⡙⣒⢬⡣⣄⢑⠶⣮⣙⢳⡇⠇⡿⠸⣸⣿⡷⣝⠵⣌⢷⣝⢮⡻⣿⣿⣿⣿⣿⣻⣿⣿⣿⣿⣯⣻⣿⣿⣝⣻⡮⠍⡉⠛⠳⣒⠤⢣⡻⣭⣟⣿⣿⣿⣾⣯⣻⣿⣿⣿⣿
-        //⠠⡙⢎⠰⡡⢦⠘⡤⠊⠀⠀⠀⠀⠂⢀⠔⡡⠞⠟⢋⣼⣿⡟⢃⠤⠚⣉⠖⣱⡟⣜⣡⢧⢋⢎⢠⢏⣠⢧⣿⢃⡎⡜⣼⣯⢯⡳⢯⣞⣷⣻⡟⣧⣪⣯⣾⣿⠋⡑⢡⠔⣽⢰⡏⢤⣣⡁⢮⣞⢮⣪⢳⠝⣮⣫⠳⣵⡘⢿⢡⢰⠇⣇⣿⡷⣿⣯⣧⡘⣮⢻⣷⣽⣜⢿⣿⣿⣿⣿⣯⣿⣟⢿⣿⣿⣿⠿⣿⣮⣟⠛⠰⠤⣤⣌⣳⣷⣽⣶⣽⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣷⣹⣌⡱⢀⠔⠉⣀⢂⠡⠈⠐⠀⠡⠂⠀⢀⡠⠾⢋⠝⡟⠁⠀⣔⣲⠄⡸⢫⣼⣾⡵⢣⢏⢢⢏⣆⢇⣾⣷⡟⡸⣸⣿⣞⣷⢻⡗⣾⡜⣧⣛⡿⢿⡿⣽⣧⠇⡴⢣⣼⣆⣺⠰⠹⡓⣟⢮⣫⠚⢧⢳⣹⢼⣿⣷⣾⣿⠎⢆⣿⢸⢹⣯⣿⢿⣻⣿⣿⣮⢧⣻⣿⣾⡿⣻⣿⣟⣿⣿⣿⣿⡿⣝⠿⣿⣿⣦⣄⠉⠻⢦⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⡽⡻⠟⡕⠁⠂⡘⠠⢌⠠⠁⡠⠊⠀⠀⠈⢀⠄⠀⠁⠀⠀⣠⠾⣛⡭⠚⢰⣿⣿⡿⣣⢫⣎⣏⡾⣸⢸⣿⢿⢡⣱⣿⣿⣟⣾⣻⢞⣵⣻⢃⠝⡙⣰⠏⡱⠃⡜⣴⣿⣿⠏⡇⡥⡇⢷⣿⣾⣷⣷⣽⣌⢮⠺⣟⡿⡽⠏⡜⣸⠇⡇⣿⣻⡿⣿⣿⣿⣿⡿⣧⣳⢻⣿⣿⣝⢮⢷⡻⢷⡽⢿⡿⣮⠲⡀⣀⠩⣘⠿⣶⣴⣿⣦⣽⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣡⡵⢊⡔⣩⠒⡤⢁⠂⢁⠖⠀⠠⢁⠐⠀⠀⠀⢀⠀⠀⢀⡴⠊⠁⠀⡌⣾⣿⡿⡳⠣⡟⡞⣼⡧⡇⣿⣟⢃⠇⣾⣿⣟⡾⣷⢯⣛⡶⣏⣡⠾⢡⢃⡼⣀⠟⣰⠯⣽⠋⠌⣼⣡⢣⣿⢻⣏⣿⣻⣝⣻⡌⢷⡉⢞⡽⡙⡰⠭⢰⢸⡳⣏⡿⣽⣯⣿⣿⣷⣬⡉⢧⢻⠟⠿⣎⢧⠉⠓⠈⡐⠂⠈⠁⠙⢦⠱⣭⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⠟⣴⢮⣔⣂⠊⠅⢋⠔⡡⢠⠉⡀⠄⠂⠈⠀⡐⠀⠀⡠⠋⠀⠀⠠⠂⡇⠔⠉⡰⢡⡞⡹⢸⠿⠱⠐⡷⡛⠸⢸⢟⠷⠮⢝⡏⠓⡭⢳⢯⠻⢡⠃⢮⠱⠎⡵⢫⠷⢉⠌⢘⠱⢂⡞⣜⠢⡝⢲⡹⠌⠳⠘⡄⢊⠈⡲⠴⣉⠃⠌⠲⡥⠉⠙⢧⠛⢾⡹⢯⢷⣛⡌⣆⠩⢀⠐⠂⢳⡀⢅⠀⠀⢀⣀⠈⢤⡳⡽⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣾⣿⣿⣿⣭⢟⠔⣁⠌⠡⡁⢆⠡⠘⡀⠃⠂⠄⠄⠐⠁⠄⡐⢀⠂⠰⠁⠀⡴⠁⠂⢠⠁⠈⠀⠘⠀⡴⠃⠃⠌⠀⠋⠀⠀⠀⠀⠀⠀⠀⠁⠀⠀⠀⠀⠈⠀⠋⠀⠈⠀⠀⠀⠀⠊⠀⠀⠀⠀⠠⠁⠀⠀⠀⠀⠁⠀⠀⠀⠀⠀⠀⠀⠁⠀⠀⠂⠀⠀⠀⠀⠉⠐⡘⡄⠀⢂⠐⢄⠳⡈⣟⣶⣾⣽⣿⣿⣿⣞⢮⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⠿⣏⠥⣶⡖⡡⣚⣭⠻⣴⡩⢄⠊⠥⣀⠣⠜⡠⠊⣀⢂⠐⡀⠂⠈⢸⠀⡴⠁⠀⠀⠆⠀⠀⠀⢀⠀⠀⠐⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⢀⠀⠌⡐⠠⢱⠈⠀⢦⣘⣣⣱⡹⣿⣿⣿⣿⣿⣿⣿⣿⡳⡿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⡿⢿⠾⠿⠼⢍⣉⣉⣳⠷⣙⢆⠩⠐⠀⠅⢊⠰⡐⠤⢊⡰⠀⠆⠐⠈⡰⠁⢀⠂⠘⠀⢀⠀⢂⠈⠀⠀⠂⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠀⠐⢀⠂⡈⠄⡌⡐⠀⢂⡜⡰⢌⡳⠌⡇⣞⠺⣍⣛⣷⢻⢲⠿⣿⣿⣿⣿⣿⣿⣿⡿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⣶⣶⣿⣶⣶⣶⣞⠻⠋⠓⡽⣎⣛⠲⠥⠔⣢⢃⡌⠓⣌⠲⡑⢊⡅⡸⠁⠐⠀⢀⠂⢌⠠⡈⠀⠀⠀⠀⠃⠀⠀⠀⠀⠀⠀⢀⠂⠁⠀⠀⠀⠀⠀⠄⠠⠀⡀⠀⠁⠀⠀⠀⠀⢂⠀⠀⠀⠀⠀⠀⠀⠀⠀⢈⠐⠠⠐⡀⢀⠁⣀⠢⡀⠒⡈⢦⡈⠱⡃⢄⠘⢽⣾⣷⡾⢹⣬⣿⣾⣯⣉⣧⣯⢿⣮⣽⣿⣿⣿⣿⣿⣿⡾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //⡾⣽⣿⣿⣿⣷⣭⠎⠵⠠⠤⣀⠀⠀⢄⢢⡴⣌⡜⣩⠔⡣⠝⠢⡰⢱⠀⠃⠐⠘⠀⠄⠂⠁⠐⡀⠇⢨⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⠀⠀⡀⠀⠂⠀⠀⡁⠀⠀⢀⠠⠐⢀⠊⢡⠃⡔⠣⢎⠴⣡⣛⢶⣱⣦⠽⣧⡝⣶⣵⣦⣿⣿⣿⣌⣟⣿⣿⣿⣿⣷⡘⣾⣿⣿⣯⣝⣿⣿⣿⣿⣿⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-        //--------------------------------------------------------------------------------------------------------------------------
-        //---------------------------------------------------------------------------------------------------------------------------
-        // Extra buttons for testing/debugging API responses — can be removed in production
-   
-
-        //---------------------------------------------------------------------------------------------------------------------------
-        // Extra buttons for testing/debugging API responses — can be removed in production
-
+        toolbar.Controls.Add(lblStatus);
 
         dgv = new DataGridView
         {
@@ -372,7 +308,22 @@ class DashboardForm : Form
 
         Controls.Add(dgv);
         Controls.Add(toolbar);
+    }
 
+    Button MakeToolbarButton(string text, int x, Color back, Color fore)
+    {
+        var btn = new Button
+        {
+            Text = text,
+            Location = new Point(x, 10),
+            Size = new Size(150, 28),
+            BackColor = back,
+            ForeColor = fore,
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 9, FontStyle.Bold)
+        };
+        btn.FlatAppearance.BorderSize = 0;
+        return btn;
     }
 
     async Task LoadEmployeesAsync()
@@ -384,30 +335,29 @@ class DashboardForm : Form
 
         try
         {
-            var employees = new List<Employee>();
-            string url = "personnel/api/employees/?page=1&page_size=100";
+            var all = new List<Employee>();
+            var url = "personnel/api/employees/?page=1&page_size=100";
 
             while (!string.IsNullOrWhiteSpace(url))
             {
                 var json = await ApiClient.GetAsync(url);
                 var paged = JsonConvert.DeserializeObject<PagedResponse<Employee>>(json);
-                if (paged?.Data != null) employees.AddRange(paged.Data);
+                if (paged?.Data != null) all.AddRange(paged.Data);
                 url = paged?.Next?.Replace(ApiClient.Http.BaseAddress.ToString(), "");
             }
 
-            // Email replaced with Rate (blank — to be filled manually)
-            dgv.DataSource = employees.ConvertAll(x => new
+            dgv.DataSource = all.ConvertAll(x => new
             {
                 Employee_Code = x.EmpCode,
                 First_Name = x.FirstName,
                 Last_Name = x.LastName,
                 Department = x.DepartmentName,
                 Hire_Date = x.HireDate,
-                Rate = ""   // payroll rate — fill manually
+                Rate = ""  // filled manually for payroll
             });
 
             lblStatus.ForeColor = Color.FromArgb(0, 200, 150);
-            lblStatus.Text = $"{employees.Count} employees loaded.";
+            lblStatus.Text = $"{all.Count} employees loaded.";
         }
         catch (Exception ex)
         {
@@ -418,32 +368,35 @@ class DashboardForm : Form
     }
 }
 
-
-// ── Export Dialog ─────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  EXPORT DIALOG
+// ══════════════════════════════════════════════════════════════
 class ExportDialog : Form
 {
     DateTimePicker dtpFrom, dtpTo;
     CheckedListBox clbDepts;
     Button btnLoadDepts, btnExport, btnSelectAll, btnClearAll;
     Label lblStatus;
-    List<DepartmentItem> _departments = new List<DepartmentItem>();
+    List<DepartmentItem> _departments = new();
+    TimetableStore _store;
 
     public ExportDialog()
     {
         Text = "Export Timecard to Excel";
-        Size = new Size(480, 560);
+        Size = new Size(480, 580);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         BackColor = Color.FromArgb(18, 18, 18);
         ForeColor = Color.White;
+        _store = TimetableStore.Load();
         BuildUI();
     }
 
     void BuildUI()
     {
+        // ── Date range ───────────────────────────────────────
         Controls.Add(MakeLabel("Date Range", 16));
-
         Controls.Add(MakeLabel("From:", 38));
         dtpFrom = new DateTimePicker
         {
@@ -464,6 +417,7 @@ class ExportDialog : Form
         };
         Controls.Add(dtpTo);
 
+        // ── Department selection ─────────────────────────────
         Controls.Add(MakeLabel("Departments", 76));
 
         btnLoadDepts = MakeButton("Load Departments", 16, 94, 160);
@@ -491,7 +445,7 @@ class ExportDialog : Form
         clbDepts = new CheckedListBox
         {
             Location = new Point(16, 128),
-            Size = new Size(432, 300),
+            Size = new Size(432, 290),
             BackColor = Color.FromArgb(35, 35, 35),
             ForeColor = Color.White,
             BorderStyle = BorderStyle.FixedSingle,
@@ -500,22 +454,31 @@ class ExportDialog : Form
         };
         Controls.Add(clbDepts);
 
+        // Timetable warning
+        Controls.Add(new Label
+        {
+            Text = "ℹ Departments without a timetable will show raw punch times only.",
+            ForeColor = Color.FromArgb(255, 200, 0),
+            Font = new Font("Segoe UI", 8, FontStyle.Italic),
+            Location = new Point(16, 424),
+            Size = new Size(432, 32)
+        });
+
         lblStatus = new Label
         {
-            Location = new Point(16, 440),
+            Location = new Point(16, 460),
             Size = new Size(300, 50),
             ForeColor = Color.Silver,
             Font = new Font("Segoe UI", 8)
         };
         Controls.Add(lblStatus);
 
-        btnExport = MakeButton("Export to Excel", 322, 448, 130);
+        btnExport = MakeButton("Export to Excel", 322, 468, 130);
         btnExport.Click += async (s, e) => await ExportAsync();
         Controls.Add(btnExport);
-
-
     }
 
+    // ── Load departments from API ─────────────────────────────
     async Task LoadDepartmentsAsync()
     {
         btnLoadDepts.Enabled = false;
@@ -536,7 +499,12 @@ class ExportDialog : Form
             }
 
             foreach (var d in _departments.OrderBy(d => d.DeptName))
-                clbDepts.Items.Add(d.DeptName, true);
+            {
+                var hasTimetable = _store.GetForDepartment(d.DeptName) != null;
+                clbDepts.Items.Add(
+                    hasTimetable ? d.DeptName : $"{d.DeptName}  ⚠ no timetable",
+                    true);
+            }
 
             lblStatus.ForeColor = Color.FromArgb(0, 200, 150);
             lblStatus.Text = $"{_departments.Count} departments loaded.";
@@ -549,15 +517,21 @@ class ExportDialog : Form
         finally { btnLoadDepts.Enabled = true; }
     }
 
+    // ── Export ────────────────────────────────────────────────
     async Task ExportAsync()
     {
-        var selectedDeptNames = clbDepts.CheckedItems.Cast<string>().ToList();
-        if (selectedDeptNames.Count == 0)
+        var selectedRaw = clbDepts.CheckedItems.Cast<string>().ToList();
+        if (selectedRaw.Count == 0)
         {
             lblStatus.ForeColor = Color.OrangeRed;
             lblStatus.Text = "Please select at least one department.";
             return;
         }
+
+        // Strip ⚠ suffix
+        var selectedDeptNames = selectedRaw
+            .Select(s => s.Contains("  ⚠") ? s.Substring(0, s.IndexOf("  ⚠")) : s)
+            .ToList();
 
         var sfd = new SaveFileDialog
         {
@@ -573,9 +547,9 @@ class ExportDialog : Form
 
         try
         {
+            // Fetch punch records for date range
             var from = dtpFrom.Value.ToString("yyyy-MM-dd") + " 00:00:00";
             var to = dtpTo.Value.ToString("yyyy-MM-dd") + " 23:59:59";
-
             var punches = new List<PunchRecord>();
             var url = $"iclock/api/transactions/?start_time={Uri.EscapeDataString(from)}&end_time={Uri.EscapeDataString(to)}&page=1&page_size=500";
 
@@ -590,22 +564,20 @@ class ExportDialog : Form
                 url = paged?.Next?.Replace(ApiClient.Http.BaseAddress.ToString(), "");
             }
 
-            lblStatus.Text = $"Processing {punches.Count} punch records...";
+            lblStatus.Text = $"Calculating attendance for {punches.Count} records...";
             Application.DoEvents();
 
-            var filtered = punches
-                .Where(p => selectedDeptNames.Contains(p.Department ?? ""))
-                .ToList();
-
-            var daily = GroupToDailyRecords(filtered);
+            // Filter to selected departments then run calculator
+            var filtered = punches.Where(p => selectedDeptNames.Contains(p.Department ?? "")).ToList();
+            var calculated = AttendanceCalculator.Calculate(filtered, _store);
 
             lblStatus.Text = "Building Excel file...";
             Application.DoEvents();
 
-            BuildExcel(daily, sfd.FileName);
+            BuildExcel(calculated, sfd.FileName);
 
             lblStatus.ForeColor = Color.FromArgb(0, 200, 150);
-            lblStatus.Text = $"Done! {daily.Count} rows across {selectedDeptNames.Count} department(s).";
+            lblStatus.Text = $"Done! {calculated.Count} rows across {selectedDeptNames.Count} dept(s).";
 
             if (MessageBox.Show("Export complete! Open the file now?", "Done",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
@@ -625,138 +597,48 @@ class ExportDialog : Form
         finally { btnExport.Enabled = true; }
     }
 
-    List<DailyRecord> GroupToDailyRecords(List<PunchRecord> punches)
-    {
-        var result = new List<DailyRecord>();
-
-        var groups = punches.GroupBy(p => new
-        {
-            p.EmpCode,
-            Date = p.PunchTime?.Length >= 10 ? p.PunchTime.Substring(0, 10) : p.PunchTime
-        });
-
-        foreach (var g in groups)
-        {
-            var sorted = g
-                .Select(p => p.PunchTime)
-                .Where(t => !string.IsNullOrEmpty(t))
-                .OrderBy(t => t)
-                .ToList();
-
-            var first = g.First();
-            result.Add(new DailyRecord
-            {
-                EmpCode = g.Key.EmpCode,
-                FullName = $"{first.LastName}, {first.FirstName}".Trim(',', ' '),
-                Department = first.Department ?? "",
-                Date = g.Key.Date ?? "",
-                ClockIn = sorted.Count >= 1 ? TimeOnly(sorted[0]) : "",
-                ClockOut = sorted.Count >= 2 ? TimeOnly(sorted[^1]) : "",
-                BreakOut = sorted.Count >= 4 ? TimeOnly(sorted[1]) : "",
-                BreakIn = sorted.Count >= 4 ? TimeOnly(sorted[^2]) : ""
-            });
-        }
-
-        return result
-            .OrderBy(r => r.Department)
-            .ThenBy(r => r.EmpCode)
-            .ThenBy(r => r.Date)
-            .ToList();
-    }
-
-    string TimeOnly(string dt)
-    {
-        if (string.IsNullOrEmpty(dt) || dt.Length < 16) return dt ?? "";
-        return dt.Substring(11, 5);
-    }
-
-    void BuildExcel(List<DailyRecord> records, string filePath)
+    // ── Build Excel ───────────────────────────────────────────
+    void BuildExcel(List<CalculatedRecord> records, string filePath)
     {
         using var wb = new XLWorkbook();
 
-        var byDept = records
-            .GroupBy(r => r.Department)
-            .OrderBy(g => g.Key);
-
         // Column layout:
-        // A  Employee ID
-        // B  Name
-        // C  Department
-        // D  Date
-        // E  Clock In
-        // F  Clock Out
-        // G  Break Out
-        // H  Break In
-        // --- from API (blank, ZKBio fills these) ---
-        // I  Total OT
-        // J  Unscheduled
-        // K  Regular(H)
-        // L  OT1(H)
-        // --- payroll computed (blank, fill manually) ---
-        // M  DCTC REG HRS(H)
-        // N  DCTC OT SYS ADJ(H)
-        // O  DCTC TOTAL OT(H)
-        // P  DCTC MANUAL ADJ REG(H)
-        // Q  DCTC MANUAL ADJ OT(H)
-        // R  TOTAL REG HRS(H)
-        // S  TOTAL OT HRS(H)
-
+        // A-D:   Identity (Employee ID, Name, Department, Date)
+        // E-H:   Punch times (Clock In, Clock Out, Break Out, Break In)
+        // I-L:   Computed attendance (Total OT, Unscheduled, Regular(H), OT1(H))
+        // M-S:   DCTC payroll columns (pre-filled from calc; adj columns are yellow)
         string[] headers =
         {
             "Employee ID", "Name", "Department", "Date",
             "Clock In", "Clock Out", "Break Out", "Break In",
-            "Total OT", "Unscheduled", "Regular(H)", "OT1(H)",
+            "Total OT(H)", "Unscheduled", "Regular(H)", "OT1(H)",
             "DCTC REG HRS(H)", "DCTC OT SYS ADJ(H)", "DCTC TOTAL OT(H)",
             "DCTC MANUAL ADJ REG(H)", "DCTC MANUAL ADJ OT(H)",
             "TOTAL REG HRS(H)", "TOTAL OT HRS(H)"
         };
+        int cols = headers.Length;
 
-        int totalCols = headers.Length; // 19
+        var byDept = records.GroupBy(r => r.Department).OrderBy(g => g.Key);
 
         foreach (var deptGroup in byDept)
         {
             var ws = AddSheet(wb, deptGroup.Key);
-            WriteSheetHeader(ws, deptGroup.Key, headers, totalCols);
-
+            WriteSheetHeader(ws, deptGroup.Key, headers, cols);
             int row = 7;
             foreach (var rec in deptGroup)
-            {
-                WriteDataRow(ws, row, rec, totalCols);
-                row++;
-            }
-
-            // Auto-fit and minimum widths
-            ws.Columns().AdjustToContents();
-            ws.Column(1).Width = Math.Max(ws.Column(1).Width, 13);
-            ws.Column(2).Width = Math.Max(ws.Column(2).Width, 24);
-            ws.Column(3).Width = Math.Max(ws.Column(3).Width, 24);
-            // Payroll columns — fixed width so they're easy to fill in
-            for (int c = 9; c <= totalCols; c++)
-                ws.Column(c).Width = 18;
-
-            ws.SheetView.FreezeRows(6);
-            ws.SheetView.FreezeColumns(2); // freeze Name so it stays visible while scrolling
+                WriteDataRow(ws, row++, rec, cols);
+            FinalizeSheet(ws, cols);
         }
 
-        // Summary sheet when more than one department
         if (byDept.Count() > 1)
         {
             var ws = wb.Worksheets.Add("ALL DEPARTMENTS");
             ws.TabColor = XLColor.DarkGreen;
-            WriteSheetHeader(ws, "All Departments", headers, totalCols);
-
+            WriteSheetHeader(ws, "All Departments", headers, cols);
             int row = 7;
             foreach (var rec in records)
-            {
-                WriteDataRow(ws, row, rec, totalCols);
-                row++;
-            }
-
-            ws.Columns().AdjustToContents();
-            for (int c = 9; c <= totalCols; c++)
-                ws.Column(c).Width = 18;
-            ws.SheetView.FreezeRows(6);
-            ws.SheetView.FreezeColumns(2);
+                WriteDataRow(ws, row++, rec, cols);
+            FinalizeSheet(ws, cols);
             ws.Position = 1;
         }
 
@@ -765,7 +647,7 @@ class ExportDialog : Form
 
     IXLWorksheet AddSheet(XLWorkbook wb, string deptName)
     {
-        var name = deptName.Length > 31 ? deptName.Substring(0, 31) : deptName;
+        var name = (deptName.Length > 31 ? deptName.Substring(0, 31) : deptName);
         foreach (var c in new[] { ':', '\\', '/', '?', '*', '[', ']' })
             name = name.Replace(c.ToString(), "");
         if (string.IsNullOrWhiteSpace(name)) name = "Unknown";
@@ -776,24 +658,23 @@ class ExportDialog : Form
         return wb.Worksheets.Add(name);
     }
 
-    void WriteSheetHeader(IXLWorksheet ws, string deptName, string[] headers, int totalCols)
+    void WriteSheetHeader(IXLWorksheet ws, string deptName, string[] headers, int cols)
     {
-        // Merge title cells across all columns
-        ws.Range(1, 1, 1, totalCols).Merge();
+        ws.Range(1, 1, 1, cols).Merge();
         ws.Cell(1, 1).Value = "DCTC";
         ws.Cell(1, 1).Style.Font.Bold = true;
         ws.Cell(1, 1).Style.Font.FontSize = 14;
 
-        ws.Range(2, 1, 2, totalCols).Merge();
+        ws.Range(2, 1, 2, cols).Merge();
         ws.Cell(2, 1).Value = "Total Time Card";
         ws.Cell(2, 1).Style.Font.Bold = true;
         ws.Cell(2, 1).Style.Font.FontSize = 11;
 
-        ws.Range(3, 1, 3, totalCols).Merge();
+        ws.Range(3, 1, 3, cols).Merge();
         ws.Cell(3, 1).Value = deptName;
         ws.Cell(3, 1).Style.Font.Bold = true;
 
-        ws.Range(4, 1, 4, totalCols).Merge();
+        ws.Range(4, 1, 4, cols).Merge();
         ws.Cell(4, 1).Value =
             $"{dtpFrom.Value:yyyy-MM-dd}  to  {dtpTo.Value:yyyy-MM-dd}";
         ws.Cell(4, 1).Style.Font.Italic = true;
@@ -808,50 +689,76 @@ class ExportDialog : Form
             cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             cell.Style.Alignment.WrapText = true;
             cell.Style.Border.BottomBorder = XLBorderStyleValues.Medium;
-
-            if (c < 8)
-                cell.Style.Fill.BackgroundColor = XLColor.FromArgb(47, 117, 181);
-            else if (c < 12)
-                cell.Style.Fill.BackgroundColor = XLColor.FromArgb(0, 128, 128);
-            else
-                cell.Style.Fill.BackgroundColor = XLColor.FromArgb(180, 95, 6);
+            // Blue = punch data | Teal = computed | Orange = payroll
+            cell.Style.Fill.BackgroundColor =
+                c < 8 ? XLColor.FromArgb(47, 117, 181) :
+                c < 12 ? XLColor.FromArgb(0, 128, 128) :
+                         XLColor.FromArgb(180, 95, 6);
         }
-
-        ws.Row(6).Height = 36; // taller header row for wrapped text
+        ws.Row(6).Height = 36;
     }
 
-    void WriteDataRow(IXLWorksheet ws, int row, DailyRecord rec, int totalCols)
+    void WriteDataRow(IXLWorksheet ws, int row, CalculatedRecord rec, int cols)
     {
+        // Identity
         ws.Cell(row, 1).Value = rec.EmpCode ?? "";
         ws.Cell(row, 2).Value = rec.FullName ?? "";
         ws.Cell(row, 3).Value = rec.Department ?? "";
         ws.Cell(row, 4).Value = rec.Date ?? "";
+
+        // Punch times
         ws.Cell(row, 5).Value = rec.ClockIn ?? "";
         ws.Cell(row, 6).Value = rec.ClockOut ?? "";
         ws.Cell(row, 7).Value = rec.BreakOut ?? "";
         ws.Cell(row, 8).Value = rec.BreakIn ?? "";
 
-       
-        for (int c = 9; c <= totalCols; c++)
-            ws.Cell(row, c).Value = "";
+        ws.Cell(row, 9).Value = rec.IsAbsent ? (XLCellValue)"" : (XLCellValue)rec.TotalOTH;
+        ws.Cell(row, 10).Value = rec.IsUnscheduled ? "Yes" : "";
+        ws.Cell(row, 11).Value = rec.IsAbsent ? (XLCellValue)"" : (XLCellValue)rec.RegularH;
+        ws.Cell(row, 12).Value = rec.IsAbsent ? (XLCellValue)"" : (XLCellValue)rec.OT1H;
+        ws.Cell(row, 13).Value = rec.IsAbsent ? (XLCellValue)"" : (XLCellValue)rec.RegularH;
+        ws.Cell(row, 15).Value = rec.IsAbsent ? (XLCellValue)"" : (XLCellValue)rec.TotalOTH;
+        ws.Cell(row, 18).Value = rec.IsAbsent ? (XLCellValue)"" : (XLCellValue)rec.RegularH;
+        ws.Cell(row, 19).Value = rec.IsAbsent ? (XLCellValue)"" : (XLCellValue)rec.TotalOTH;
 
-        
-        var rowRange = ws.Range(row, 1, row, totalCols);
+        // Row styling — white background, light border
+        var rowRange = ws.Range(row, 1, row, cols);
         rowRange.Style.Fill.BackgroundColor = XLColor.White;
         rowRange.Style.Font.FontColor = XLColor.Black;
         rowRange.Style.Border.BottomBorder = XLBorderStyleValues.Hair;
         rowRange.Style.Border.BottomBorderColor = XLColor.LightGray;
 
-       
-        for (int c = 4; c <= totalCols; c++)
-            ws.Cell(row, c).Style.Alignment.Horizontal =
-                XLAlignmentHorizontalValues.Center;
+        // Center numeric and time columns
+        for (int c = 4; c <= cols; c++)
+            ws.Cell(row, c).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
-  
-        var payrollRange = ws.Range(row, 13, row, totalCols);
-        payrollRange.Style.Fill.BackgroundColor = XLColor.FromArgb(255, 255, 220);
+        // Yellow tint on manual adjustment columns
+        ws.Cell(row, 14).Style.Fill.BackgroundColor = XLColor.FromArgb(255, 255, 200);
+        ws.Cell(row, 16).Style.Fill.BackgroundColor = XLColor.FromArgb(255, 255, 200);
+        ws.Cell(row, 17).Style.Fill.BackgroundColor = XLColor.FromArgb(255, 255, 200);
+
+        // Red text for absent rows
+        if (rec.IsAbsent)
+            ws.Range(row, 1, row, 4).Style.Font.FontColor = XLColor.OrangeRed;
+
+        // Orange text for unscheduled
+        if (rec.IsUnscheduled)
+            ws.Cell(row, 10).Style.Font.FontColor = XLColor.OrangeRed;
     }
 
+    void FinalizeSheet(IXLWorksheet ws, int cols)
+    {
+        ws.Columns().AdjustToContents();
+        ws.Column(1).Width = Math.Max(ws.Column(1).Width, 13);
+        ws.Column(2).Width = Math.Max(ws.Column(2).Width, 26);
+        ws.Column(3).Width = Math.Max(ws.Column(3).Width, 22);
+        for (int c = 9; c <= cols; c++)
+            ws.Column(c).Width = Math.Max(ws.Column(c).Width, 14);
+        ws.SheetView.FreezeRows(6);
+        ws.SheetView.FreezeColumns(2);
+    }
+
+    // ── Helpers ──────────────────────────────────────────────
     Label MakeLabel(string text, int y, int x = 16) => new Label
     {
         Text = text,

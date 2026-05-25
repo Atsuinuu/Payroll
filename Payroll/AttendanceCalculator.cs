@@ -2,10 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-// ══════════════════════════════════════════════════════════════
-//  CALCULATED DAILY RECORD
-//  One row per employee per day — all columns computed
-// ══════════════════════════════════════════════════════════════
+
 class CalculatedRecord
 {
     // Identity
