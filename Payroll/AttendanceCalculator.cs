@@ -1,23 +1,23 @@
-﻿using System;
+﻿#nullable disable
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
-
+// ══════════════════════════════════════════════════════════════
+//  CALCULATED DAILY RECORD
+// ══════════════════════════════════════════════════════════════
 class CalculatedRecord
 {
-    // Identity
     public string EmpCode { get; set; }
     public string FullName { get; set; }
     public string Department { get; set; }
     public string Date { get; set; }
 
-    // Raw punches
     public string ClockIn { get; set; }
     public string ClockOut { get; set; }
     public string BreakOut { get; set; }
     public string BreakIn { get; set; }
 
-    // Computed attendance values (in minutes internally)
     public double TotalWorkedMinutes { get; set; }
     public double BreakMinutes { get; set; }
     public double NetWorkedMinutes { get; set; }
@@ -33,7 +33,7 @@ class CalculatedRecord
     public bool IsAbsent { get; set; }
     public bool IsUnscheduled { get; set; }
 
-    // Display helpers — hours rounded to 2 decimal places
+    // Display helpers — rounded to 2 decimal places
     public double RegularH => Math.Round(RegularMinutes / 60.0, 2);
     public double TotalOTH => Math.Round(TotalOTMinutes / 60.0, 2);
     public double OT1H => Math.Round(OT1Minutes / 60.0, 2);
@@ -51,7 +51,6 @@ class CalculatedRecord
 // ══════════════════════════════════════════════════════════════
 static class AttendanceCalculator
 {
-    // ── Main entry point ──────────────────────────────────────
     public static List<CalculatedRecord> Calculate(
         List<PunchRecord> punches,
         TimetableStore store)
@@ -82,7 +81,6 @@ static class AttendanceCalculator
             .ToList();
     }
 
-    // ── Calculate one employee's day ──────────────────────────
     static CalculatedRecord CalculateDay(
         string empCode,
         string date,
@@ -124,7 +122,7 @@ static class AttendanceCalculator
         rec.BreakOut = breakOut.HasValue ? FormatHHmm(breakOut.Value) : "";
         rec.BreakIn = breakIn.HasValue ? FormatHHmm(breakIn.Value) : "";
 
-        // No timetable assigned — just record raw times
+        // No timetable — just record raw times, no calculation
         if (t == null)
         {
             if (clockOut.HasValue)
@@ -154,7 +152,7 @@ static class AttendanceCalculator
         {
             if (br.PunchRequired)
             {
-                // Only deduct if employee punched break out and in
+                // Only deduct if employee actually punched break
                 if (breakOut.HasValue && breakIn.HasValue)
                 {
                     var actualBreak = (breakIn.Value - breakOut.Value).TotalMinutes;
@@ -163,12 +161,10 @@ static class AttendanceCalculator
             }
             else
             {
-                // Auto-deduct if employee worked through the break window
+                // Auto-deduct if worked through break window
                 var brStart = ParseHHmm(br.StartTime);
                 var brEnd = ParseHHmm(br.EndTime);
-                if (clockOut.HasValue &&
-                    clockIn < brEnd &&
-                    clockOut.Value > brStart)
+                if (clockOut.HasValue && clockIn < brEnd && clockOut.Value > brStart)
                     breakMins += br.Duration;
             }
         }
@@ -188,46 +184,41 @@ static class AttendanceCalculator
                 rec.EarlyOutMinutes = (scheduledOut - clockOut.Value).TotalMinutes;
         }
 
-        // ── Early In — pre-shift OT ───────────────────────────
+        // ── Early In (pre-shift) — tracked separately, NOT added to OT ──
+        // Early In is ALREADY included in net worked time since we calculate
+        // gross from clockIn to clockOut. We just track it for display.
         if (t.EarlyInEnabled && clockIn < scheduledIn)
         {
             var earlyMins = (scheduledIn - clockIn).TotalMinutes;
+            // Only count if above minimum threshold
             if (earlyMins >= t.EarlyInMinimum)
                 rec.EarlyInMinutes = earlyMins;
-            else if (t.EarlyInCountMinimum)
-                rec.EarlyInMinutes = t.EarlyInMinimum; // count minimum if enabled
+            // Note: do NOT add to OT separately — already in net worked
         }
 
-        // ── Late Out — post-shift OT ──────────────────────────
+        // ── Late Out (post-shift) — tracked separately, NOT added to OT ─
+        // Late Out is ALREADY included in net worked time.
         if (t.LateOutEnabled && clockOut.HasValue && clockOut.Value > scheduledOut)
         {
             var lateMins = (clockOut.Value - scheduledOut).TotalMinutes;
             if (lateMins >= t.LateOutMinimum)
                 rec.LateOutMinutes = lateMins;
-            else if (t.LateOutCountMinimum)
-                rec.LateOutMinutes = t.LateOutMinimum;
+            // Note: do NOT add to OT separately — already in net worked
         }
 
         // ── Regular hours ─────────────────────────────────────
-        // Regular = net worked, capped at regularHours/day
+        // Regular = net worked, capped at regular hours/day
         rec.RegularMinutes = Math.Min(
             Math.Max(rec.NetWorkedMinutes, 0),
             regularMins);
 
         // ── Total OT ─────────────────────────────────────────
+        // OT = net worked BEYOND regular hours
+        // Early In and Late Out are already inside net worked —
+        // so this naturally captures all OT without double-counting
         double totalOT = Math.Max(rec.NetWorkedMinutes - regularMins, 0);
 
-        // Add early-in to OT bucket if configured
-        if (t.EarlyInEnabled &&
-           (t.EarlyInAssignTo == "Normal OT" || t.EarlyInAssignTo.StartsWith("OT")))
-            totalOT += rec.EarlyInMinutes;
-
-        // Add late-out to OT bucket if configured
-        if (t.LateOutEnabled &&
-           (t.LateOutAssignTo == "Normal OT" || t.LateOutAssignTo.StartsWith("OT")))
-            totalOT += rec.LateOutMinutes;
-
-        // Cap at max OT duration
+        // Cap at max OT if configured
         if (t.MaxOTEnabled)
             totalOT = Math.Min(totalOT, t.MaxOTMinutes);
 
@@ -266,8 +257,7 @@ static class AttendanceCalculator
     public static TimeSpan ParseHHmm(string s)
     {
         if (string.IsNullOrEmpty(s)) return TimeSpan.Zero;
-        s = s.Trim();
-        var parts = s.Split(':');
+        var parts = s.Trim().Split(':');
         if (parts.Length >= 2 &&
             int.TryParse(parts[0], out int h) &&
             int.TryParse(parts[1], out int m))
@@ -277,7 +267,6 @@ static class AttendanceCalculator
 
     static TimeSpan? ParseDateTime(string dt)
     {
-        // "yyyy-MM-dd HH:mm:ss"
         if (string.IsNullOrEmpty(dt) || dt.Length < 16) return null;
         return ParseHHmm(dt.Substring(11, 5));
     }

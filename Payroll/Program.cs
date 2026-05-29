@@ -1,3 +1,4 @@
+#nullable disable
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -126,15 +127,15 @@ class LoginForm : Form
         });
 
         Controls.Add(MakeLabel("Server URL", 70));
-        txtServer = MakeTextBox(95, "http://122.53.60.80:8081/");
+        txtServer = MakeTextBox(95, "http://");
         Controls.Add(txtServer);
 
         Controls.Add(MakeLabel("Username", 135));
-        txtUsername = MakeTextBox(160, "IT");
+        txtUsername = MakeTextBox(160, "admin");
         Controls.Add(txtUsername);
 
         Controls.Add(MakeLabel("Password", 200));
-        txtPassword = MakeTextBox(225, "DCTC.L0c@L");
+        txtPassword = MakeTextBox(225, "");
         txtPassword.UseSystemPasswordChar = true;
         Controls.Add(txtPassword);
 
@@ -195,7 +196,6 @@ class LoginForm : Form
                 username = txtUsername.Text.Trim(),
                 password = txtPassword.Text
             });
-
             var content = new StringContent(payload, Encoding.UTF8, "application/json");
             var response = await client.PostAsync("api-token-auth/", content);
             var json = await response.Content.ReadAsStringAsync();
@@ -217,7 +217,6 @@ class LoginForm : Form
 
             ApiClient.Initialize(txtServer.Text.Trim(), token);
             Hide();
-
             var dashboard = new DashboardForm();
             dashboard.FormClosed += (s2, e2) => Close();
             dashboard.Show();
@@ -257,15 +256,12 @@ class DashboardForm : Form
             BackColor = Color.FromArgb(28, 28, 28)
         };
 
-        // Load Employees
         btnLoad = MakeToolbarButton("Load Employees", 10, Color.FromArgb(0, 200, 150), Color.Black);
         btnLoad.Click += async (s, e) => await LoadEmployeesAsync();
 
-        // Export Timecard
         var btnExport = MakeToolbarButton("Export Timecard", 170, Color.FromArgb(0, 150, 255), Color.Black);
         btnExport.Click += (s, e) => new ExportDialog().ShowDialog(this);
 
-        // Timetable Manager
         var btnTimetables = MakeToolbarButton("Timetables", 330, Color.FromArgb(100, 80, 200), Color.White);
         btnTimetables.Click += (s, e) => new TimetableManagerForm().ShowDialog(this);
 
@@ -273,7 +269,7 @@ class DashboardForm : Form
         {
             ForeColor = Color.Silver,
             AutoSize = true,
-            Location = new Point(470, 15)
+            Location = new Point(490, 15)
         };
 
         toolbar.Controls.Add(btnLoad);
@@ -353,7 +349,7 @@ class DashboardForm : Form
                 Last_Name = x.LastName,
                 Department = x.DepartmentName,
                 Hire_Date = x.HireDate,
-                Rate = ""  // filled manually for payroll
+                Rate = ""
             });
 
             lblStatus.ForeColor = Color.FromArgb(0, 200, 150);
@@ -377,8 +373,56 @@ class ExportDialog : Form
     CheckedListBox clbDepts;
     Button btnLoadDepts, btnExport, btnSelectAll, btnClearAll;
     Label lblStatus;
-    List<DepartmentItem> _departments = new();
+    List<DepartmentItem> _departments = new List<DepartmentItem>();
     TimetableStore _store;
+
+    // ── Column definitions ────────────────────────────────────
+    // Daily/Summary sheet: 20 cols (A–T)
+    static readonly string[] TimeCardHeaders =
+    {
+        "Employee ID",          // A  1
+        "First Name",           // B  2
+        "Department",           // C  3
+        "Date",                 // D  4
+        "Clock In",             // E  5
+        "Clock Out",            // F  6
+        "Worked Hours",         // G  7
+        "Break Out",            // H  8
+        "Break In",             // I  9
+        "Total OT",             // J  10
+        "NORMAL OT",            // K  11
+        "Regular(H)",           // L  12
+        "OT1(H)",               // M  13
+        "DCTC REG HRS(H)",      // N  14
+        "DCTC OT SYS ADJ(H) (EDITABLE)",      // O  15
+        "DCTC TOTAL OT(H)",     // P  16
+        "DCTC MANUAL ADJ REG(H) (EDITABLE)",   // Q  17
+        "DCTC MANUAL ADJ OT(H) (EDITABLE)",    // R  18
+        "TOTAL REG HRS(H)",     // S  19
+        "TOTAL OT HRS(H)"       // T  20
+    };
+
+    // Summary sheet: same + OVERALL TOTAL (col U = 21)
+    static readonly string[] SummaryHeaders =
+    {
+        "Employee ID", "First Name", "Department", "Date",
+        "Clock In", "Clock Out", "Worked Hours", "Break Out", "Break In",
+        "Total OT", "NORMAL OT", "Regular(H)", "OT1(H)",
+        "DCTC REG HRS(H)", "DCTC OT SYS ADJ(H) (EDITABLE)", "DCTC TOTAL OT(H)",
+        "DCTC MANUAL ADJ REG(H) (EDITABLE)", "DCTC MANUAL ADJ OT(H) (EDITABLE)",
+        "TOTAL REG HRS(H)", "TOTAL OT HRS(H)", "OVERALL TOTAL"
+    };
+
+    // Payroll sheet: 34 cols (A–AH)
+    static readonly string[] PayrollHeaders =
+    {
+        "NO.", "NAME", "DEPARTMENT", "RATE", "DAYS", "REG", "OT", "TOTAL",
+        "GROSS", "SAT VALE", "WED VALE", "PV", "HELMET", "GLOVES", "SHOES",
+        "CHINSTRAP", "SAFETY BOOTS", "RAINCOAT", "SAFETY VEST", "GOGGLES",
+        "METRO", "HEADGUARD", "UNIFORM", "EXCESS", "MEDICAL", "PV",
+        "TRANSPO", "H2O", "101 BARRACKS", "CANTEEN1", "CANTEEN2",
+        "NETPAY", "SIGNATURE", "NO."
+    };
 
     public ExportDialog()
     {
@@ -395,7 +439,6 @@ class ExportDialog : Form
 
     void BuildUI()
     {
-        // ── Date range ───────────────────────────────────────
         Controls.Add(MakeLabel("Date Range", 16));
         Controls.Add(MakeLabel("From:", 38));
         dtpFrom = new DateTimePicker
@@ -417,7 +460,6 @@ class ExportDialog : Form
         };
         Controls.Add(dtpTo);
 
-        // ── Department selection ─────────────────────────────
         Controls.Add(MakeLabel("Departments", 76));
 
         btnLoadDepts = MakeButton("Load Departments", 16, 94, 160);
@@ -454,7 +496,6 @@ class ExportDialog : Form
         };
         Controls.Add(clbDepts);
 
-        // Timetable warning
         Controls.Add(new Label
         {
             Text = "ℹ Departments without a timetable will show raw punch times only.",
@@ -478,7 +519,6 @@ class ExportDialog : Form
         Controls.Add(btnExport);
     }
 
-    // ── Load departments from API ─────────────────────────────
     async Task LoadDepartmentsAsync()
     {
         btnLoadDepts.Enabled = false;
@@ -517,7 +557,6 @@ class ExportDialog : Form
         finally { btnLoadDepts.Enabled = true; }
     }
 
-    // ── Export ────────────────────────────────────────────────
     async Task ExportAsync()
     {
         var selectedRaw = clbDepts.CheckedItems.Cast<string>().ToList();
@@ -528,7 +567,6 @@ class ExportDialog : Form
             return;
         }
 
-        // Strip ⚠ suffix
         var selectedDeptNames = selectedRaw
             .Select(s => s.Contains("  ⚠") ? s.Substring(0, s.IndexOf("  ⚠")) : s)
             .ToList();
@@ -547,7 +585,6 @@ class ExportDialog : Form
 
         try
         {
-            // Fetch punch records for date range
             var from = dtpFrom.Value.ToString("yyyy-MM-dd") + " 00:00:00";
             var to = dtpTo.Value.ToString("yyyy-MM-dd") + " 23:59:59";
             var punches = new List<PunchRecord>();
@@ -567,14 +604,13 @@ class ExportDialog : Form
             lblStatus.Text = $"Calculating attendance for {punches.Count} records...";
             Application.DoEvents();
 
-            // Filter to selected departments then run calculator
             var filtered = punches.Where(p => selectedDeptNames.Contains(p.Department ?? "")).ToList();
             var calculated = AttendanceCalculator.Calculate(filtered, _store);
 
             lblStatus.Text = "Building Excel file...";
             Application.DoEvents();
 
-            BuildExcel(calculated, sfd.FileName);
+            BuildExcel(calculated, selectedDeptNames, sfd.FileName);
 
             lblStatus.ForeColor = Color.FromArgb(0, 200, 150);
             lblStatus.Text = $"Done! {calculated.Count} rows across {selectedDeptNames.Count} dept(s).";
@@ -597,68 +633,113 @@ class ExportDialog : Form
         finally { btnExport.Enabled = true; }
     }
 
-    // ── Build Excel ───────────────────────────────────────────
-    void BuildExcel(List<CalculatedRecord> records, string filePath)
+    // ══════════════════════════════════════════════════════════
+    //  BUILD EXCEL — 3 sheets per department
+    //  1. SUMMARY sheet   — one row per employee, formulas ref daily sheet
+    //  2. Daily sheet     — every date in range, every employee, total rows
+    //  3. PAYROLL sheet   — payroll form with deduction columns
+    // ══════════════════════════════════════════════════════════
+    void BuildExcel(List<CalculatedRecord> records, List<string> deptNames, string filePath)
     {
         using var wb = new XLWorkbook();
 
-        // Column layout:
-        // A-D:   Identity (Employee ID, Name, Department, Date)
-        // E-H:   Punch times (Clock In, Clock Out, Break Out, Break In)
-        // I-L:   Computed attendance (Total OT, Unscheduled, Regular(H), OT1(H))
-        // M-S:   DCTC payroll columns (pre-filled from calc; adj columns are yellow)
-        string[] headers =
-        {
-            "Employee ID", "Name", "Department", "Date",
-            "Clock In", "Clock Out", "Break Out", "Break In",
-            "Total OT(H)", "Unscheduled", "Regular(H)", "OT1(H)",
-            "DCTC REG HRS(H)", "DCTC OT SYS ADJ(H)", "DCTC TOTAL OT(H)",
-            "DCTC MANUAL ADJ REG(H)", "DCTC MANUAL ADJ OT(H)",
-            "TOTAL REG HRS(H)", "TOTAL OT HRS(H)"
-        };
-        int cols = headers.Length;
+        // Build date list for the full range (every day from→to)
+        var allDates = new List<DateTime>();
+        for (var d = dtpFrom.Value.Date; d <= dtpTo.Value.Date; d = d.AddDays(1))
+            allDates.Add(d);
 
-        var byDept = records.GroupBy(r => r.Department).OrderBy(g => g.Key);
+        string dateLabel = $"{dtpFrom.Value:MMM d} - {dtpTo.Value:MMM d, yyyy}".ToUpper();
+        string dailySheetName = dtpTo.Value.ToString("yyyyMMdd");
+
+        var byDept = records
+            .GroupBy(r => r.Department)
+            .OrderBy(g => g.Key);
 
         foreach (var deptGroup in byDept)
         {
-            var ws = AddSheet(wb, deptGroup.Key);
-            WriteSheetHeader(ws, deptGroup.Key, headers, cols);
-            int row = 7;
-            foreach (var rec in deptGroup)
-                WriteDataRow(ws, row++, rec, cols);
-            FinalizeSheet(ws, cols);
-        }
+            string dept = deptGroup.Key;
 
-        if (byDept.Count() > 1)
-        {
-            var ws = wb.Worksheets.Add("ALL DEPARTMENTS");
-            ws.TabColor = XLColor.DarkGreen;
-            WriteSheetHeader(ws, "All Departments", headers, cols);
-            int row = 7;
-            foreach (var rec in records)
-                WriteDataRow(ws, row++, rec, cols);
-            FinalizeSheet(ws, cols);
-            ws.Position = 1;
+            // Group by employee, sorted by emp code
+            var byEmp = deptGroup
+                .GroupBy(r => r.EmpCode)
+                .OrderBy(g => g.Key)
+                .ToList();
+
+            // ── Sheet 2: Daily detail (named by end date) ────
+            string safeDaily = SanitizeName(dailySheetName);
+            if (wb.Worksheets.Any(s => s.Name == safeDaily))
+                safeDaily = SanitizeName($"{dept}_{dailySheetName}");
+            var wsDaily = wb.Worksheets.Add(safeDaily);
+
+            WriteTimeCardHeader(wsDaily, TimeCardHeaders.Length);
+            WriteTimeCardColumnHeaders(wsDaily, TimeCardHeaders, 3);
+
+            // Track total row positions per employee for summary formulas
+            var empTotalRows = new Dictionary<string, int>(); // empCode → total row number
+
+            int row = 4;
+            foreach (var empGroup in byEmp)
+            {
+                int empStartRow = row;
+                var empRecs = empGroup.ToDictionary(r => r.Date);
+                var firstRec = empGroup.First();
+
+                // Write one row per date in range
+                foreach (var date in allDates)
+                {
+                    string dateStr = date.ToString("yyyy-MM-dd");
+                    empRecs.TryGetValue(dateStr, out var rec);
+                    WriteDailyRow(wsDaily, row, dateStr, firstRec, rec, safeDaily);
+                    row++;
+                }
+
+                // Total row — uses SUM formulas
+                int empEndRow = row - 1;
+                WriteDailyTotalRow(wsDaily, row, firstRec, empStartRow, empEndRow, TimeCardHeaders.Length);
+                empTotalRows[empGroup.Key] = row;
+                row++;
+            }
+
+            FinalizeSheet(wsDaily, TimeCardHeaders.Length);
+
+            // ── Sheet 1: Summary (references daily sheet) ────
+            string safeSummary = SanitizeName($"SUMMARY {dateLabel}");
+            if (wb.Worksheets.Any(s => s.Name == safeSummary))
+                safeSummary = SanitizeName($"SUMMARY {dept} {dateLabel}");
+            var wsSummary = wb.Worksheets.Add(safeSummary);
+
+            WriteTimeCardHeader(wsSummary, SummaryHeaders.Length);
+            WriteTimeCardColumnHeaders(wsSummary, SummaryHeaders, 3);
+
+            int sumRow = 4;
+            foreach (var empGroup in byEmp)
+            {
+                int totalRowInDaily = empTotalRows[empGroup.Key];
+                WriteSummaryRow(wsSummary, sumRow, empGroup.First(),
+                                dept, safeDaily, totalRowInDaily,
+                                SummaryHeaders.Length);
+                sumRow++;
+            }
+
+            FinalizeSheet(wsSummary, SummaryHeaders.Length);
+            wsSummary.Position = 1; // Summary first
+
+            // ── Sheet 3: Payroll form ─────────────────────────
+            string safePayroll = SanitizeName($"PAYROLL {dateLabel}");
+            if (wb.Worksheets.Any(s => s.Name == safePayroll))
+                safePayroll = SanitizeName($"PAYROLL {dept} {dateLabel}");
+            var wsPayroll = wb.Worksheets.Add(safePayroll);
+
+            WritePayrollSheet(wsPayroll, dept, dateLabel, byEmp,
+                              wsSummary.Name, PayrollHeaders);
+            wsPayroll.Position = wsSummary.Position + 1;
         }
 
         wb.SaveAs(filePath);
     }
 
-    IXLWorksheet AddSheet(XLWorkbook wb, string deptName)
-    {
-        var name = (deptName.Length > 31 ? deptName.Substring(0, 31) : deptName);
-        foreach (var c in new[] { ':', '\\', '/', '?', '*', '[', ']' })
-            name = name.Replace(c.ToString(), "");
-        if (string.IsNullOrWhiteSpace(name)) name = "Unknown";
-        int suffix = 2;
-        string baseName = name;
-        while (wb.Worksheets.Any(s => s.Name == name))
-            name = $"{baseName.Substring(0, Math.Min(baseName.Length, 28))}_{suffix++}";
-        return wb.Worksheets.Add(name);
-    }
-
-    void WriteSheetHeader(IXLWorksheet ws, string deptName, string[] headers, int cols)
+    // ── TimeCard header (rows 1-2) ────────────────────────────
+    void WriteTimeCardHeader(IXLWorksheet ws, int cols)
     {
         ws.Range(1, 1, 1, cols).Merge();
         ws.Cell(1, 1).Value = "DCTC";
@@ -669,96 +750,304 @@ class ExportDialog : Form
         ws.Cell(2, 1).Value = "Total Time Card";
         ws.Cell(2, 1).Style.Font.Bold = true;
         ws.Cell(2, 1).Style.Font.FontSize = 11;
+    }
 
-        ws.Range(3, 1, 3, cols).Merge();
-        ws.Cell(3, 1).Value = deptName;
-        ws.Cell(3, 1).Style.Font.Bold = true;
-
-        ws.Range(4, 1, 4, cols).Merge();
-        ws.Cell(4, 1).Value =
-            $"{dtpFrom.Value:yyyy-MM-dd}  to  {dtpTo.Value:yyyy-MM-dd}";
-        ws.Cell(4, 1).Style.Font.Italic = true;
-        ws.Cell(4, 1).Style.Font.FontColor = XLColor.Gray;
-
+    // ── TimeCard column headers (row 3) ──────────────────────
+    void WriteTimeCardColumnHeaders(IXLWorksheet ws, string[] headers, int headerRow)
+    {
         for (int c = 0; c < headers.Length; c++)
         {
-            var cell = ws.Cell(6, c + 1);
+            var cell = ws.Cell(headerRow, c + 1);
             cell.Value = headers[c];
             cell.Style.Font.Bold = true;
             cell.Style.Font.FontColor = XLColor.White;
             cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             cell.Style.Alignment.WrapText = true;
             cell.Style.Border.BottomBorder = XLBorderStyleValues.Medium;
-            // Blue = punch data | Teal = computed | Orange = payroll
-            cell.Style.Fill.BackgroundColor =
-                c < 8 ? XLColor.FromArgb(47, 117, 181) :
-                c < 12 ? XLColor.FromArgb(0, 128, 128) :
-                         XLColor.FromArgb(180, 95, 6);
+
+            // A-I blue | J-M teal | N-T orange | U green (overall total)
+            if (c < 9) cell.Style.Fill.BackgroundColor = XLColor.FromArgb(47, 117, 181);
+            else if (c < 13) cell.Style.Fill.BackgroundColor = XLColor.FromArgb(0, 128, 128);
+            else if (c < 20) cell.Style.Fill.BackgroundColor = XLColor.FromArgb(180, 95, 6);
+            else cell.Style.Fill.BackgroundColor = XLColor.FromArgb(0, 100, 0);
         }
-        ws.Row(6).Height = 36;
+        ws.Row(headerRow).Height = 42;
     }
 
-    void WriteDataRow(IXLWorksheet ws, int row, CalculatedRecord rec, int cols)
+    // ── Daily row (one per date per employee) ─────────────────
+    // rec may be null if employee had no punch that day
+    void WriteDailyRow(IXLWorksheet ws, int row, string dateStr,
+                       CalculatedRecord identity, CalculatedRecord rec,
+                       string dailySheetName)
     {
-        // Identity
-        ws.Cell(row, 1).Value = rec.EmpCode ?? "";
-        ws.Cell(row, 2).Value = rec.FullName ?? "";
-        ws.Cell(row, 3).Value = rec.Department ?? "";
-        ws.Cell(row, 4).Value = rec.Date ?? "";
+        bool hasPunch = rec != null && !rec.IsAbsent;
+        bool hasClockOut = hasPunch && !string.IsNullOrEmpty(rec?.ClockOut);
+        bool hasBreak = hasPunch &&
+                           !string.IsNullOrEmpty(rec?.BreakOut) &&
+                           !string.IsNullOrEmpty(rec?.BreakIn);
+
+        // Identity columns
+        ws.Cell(row, 1).Value = identity.EmpCode ?? "";
+        ws.Cell(row, 2).Value = identity.FullName ?? "";
+        ws.Cell(row, 3).Value = identity.Department ?? "";
+        ws.Cell(row, 4).Value = dateStr;
 
         // Punch times
-        ws.Cell(row, 5).Value = rec.ClockIn ?? "";
-        ws.Cell(row, 6).Value = rec.ClockOut ?? "";
-        ws.Cell(row, 7).Value = rec.BreakOut ?? "";
-        ws.Cell(row, 8).Value = rec.BreakIn ?? "";
+        ws.Cell(row, 5).Value = hasPunch ? rec.ClockIn ?? "" : "";
+        ws.Cell(row, 6).Value = hasPunch ? rec.ClockOut ?? "" : "";
 
-        ws.Cell(row, 9).Value = rec.IsAbsent ? (XLCellValue)"" : (XLCellValue)rec.TotalOTH;
-        ws.Cell(row, 10).Value = rec.IsUnscheduled ? "Yes" : "";
-        ws.Cell(row, 11).Value = rec.IsAbsent ? (XLCellValue)"" : (XLCellValue)rec.RegularH;
-        ws.Cell(row, 12).Value = rec.IsAbsent ? (XLCellValue)"" : (XLCellValue)rec.OT1H;
-        ws.Cell(row, 13).Value = rec.IsAbsent ? (XLCellValue)"" : (XLCellValue)rec.RegularH;
-        ws.Cell(row, 15).Value = rec.IsAbsent ? (XLCellValue)"" : (XLCellValue)rec.TotalOTH;
-        ws.Cell(row, 18).Value = rec.IsAbsent ? (XLCellValue)"" : (XLCellValue)rec.RegularH;
-        ws.Cell(row, 19).Value = rec.IsAbsent ? (XLCellValue)"" : (XLCellValue)rec.TotalOTH;
+        // Worked Hours — rounded to 1 decimal (e.g. "8.0", "11.0")
+        if (hasPunch && hasClockOut)
+            ws.Cell(row, 7).Value = Math.Round(rec.NetWorkedH, 1).ToString("F1");
+        else
+            ws.Cell(row, 7).Value = "";
 
-        // Row styling — white background, light border
-        var rowRange = ws.Range(row, 1, row, cols);
-        rowRange.Style.Fill.BackgroundColor = XLColor.White;
-        rowRange.Style.Font.FontColor = XLColor.Black;
-        rowRange.Style.Border.BottomBorder = XLBorderStyleValues.Hair;
-        rowRange.Style.Border.BottomBorderColor = XLColor.LightGray;
+        ws.Cell(row, 8).Value = hasBreak ? rec.BreakOut ?? "" : "";
+        ws.Cell(row, 9).Value = hasBreak ? rec.BreakIn ?? "" : "";
 
-        // Center numeric and time columns
+        // Total OT (J), NORMAL OT (K), Regular (L), OT1 (M)
+        // Show 0 for no-punch days (matches sample)
+        ws.Cell(row, 10).Value = (XLCellValue)(hasPunch && rec.TotalOTH > 0 ? Math.Round(rec.TotalOTH, 1) : 0);
+        ws.Cell(row, 11).Value = (XLCellValue)(hasPunch && rec.LateOutH > 0 ? Math.Round(rec.LateOutH, 1) : 0);
+        ws.Cell(row, 12).Value = (XLCellValue)(hasPunch && rec.RegularH > 0 ? Math.Round(rec.RegularH, 1) : 0);
+        ws.Cell(row, 13).Value = (XLCellValue)(hasPunch && rec.OT1H > 0 ? Math.Round(rec.OT1H, 1) : 0);
+
+        // DCTC REG HRS (N) — formula: only count if all 4 punch fields present
+        ws.Cell(row, 14).FormulaA1 =
+            $"IF(OR(E{row}=\"\",F{row}=\"\",H{row}=\"\",I{row}=\"\"),0," +
+            $"IFERROR(IF(L{row}=\"\",0,VALUE(L{row})),0))";
+
+        // DCTC OT SYS ADJ (O) — blank/yellow, manual
+        ws.Cell(row, 15).Value = "";
+
+        // DCTC TOTAL OT (P) — formula
+        ws.Cell(row, 16).FormulaA1 =
+            $"IFERROR(IF(K{row}=\"\",0,VALUE(K{row})),0)" +
+            $"+IFERROR(IF(M{row}=\"\",0,VALUE(M{row})),0)" +
+            $"+IF(O{row}=\"\",0,O{row})";
+
+        // DCTC MANUAL ADJ REG (Q) / OT (R) — blank/yellow, manual
+        ws.Cell(row, 17).Value = "";
+        ws.Cell(row, 18).Value = "";
+
+        // TOTAL REG HRS (S) — formula
+        ws.Cell(row, 19).FormulaA1 = $"N{row}+IF(Q{row}=\"\",0,Q{row})";
+
+        // TOTAL OT HRS (T) — formula
+        ws.Cell(row, 20).FormulaA1 = $"P{row}+IF(R{row}=\"\",0,R{row})";
+
+        // Styling
+        StyleDataRow(ws, row, TimeCardHeaders.Length);
+    }
+
+    // ── Employee total row on daily sheet ─────────────────────
+    void WriteDailyTotalRow(IXLWorksheet ws, int row,
+                             CalculatedRecord first,
+                             int startRow, int endRow, int cols)
+    {
+        ws.Cell(row, 1).Value = first.EmpCode ?? "";
+        ws.Cell(row, 2).Value = $"{first.FullName} Total";
+        // Cols 3-13 blank on total row
+        ws.Cell(row, 14).FormulaA1 = $"SUM(N{startRow}:N{endRow})";
+        ws.Cell(row, 15).Value = "";
+        ws.Cell(row, 16).FormulaA1 = $"SUM(P{startRow}:P{endRow})";
+        ws.Cell(row, 17).Value = "";
+        ws.Cell(row, 18).Value = "";
+        ws.Cell(row, 19).FormulaA1 = $"SUM(S{startRow}:S{endRow})";
+        ws.Cell(row, 20).FormulaA1 = $"SUM(T{startRow}:T{endRow})";
+
+        // Total row style — bold, light blue
+        var range = ws.Range(row, 1, row, cols);
+        range.Style.Fill.BackgroundColor = XLColor.FromArgb(221, 235, 247);
+        range.Style.Font.Bold = true;
+        range.Style.Font.FontColor = XLColor.Black;
+        range.Style.Border.TopBorder = XLBorderStyleValues.Thin;
+        range.Style.Border.BottomBorder = XLBorderStyleValues.Medium;
         for (int c = 4; c <= cols; c++)
             ws.Cell(row, c).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+    }
 
-        // Yellow tint on manual adjustment columns
-        ws.Cell(row, 14).Style.Fill.BackgroundColor = XLColor.FromArgb(255, 255, 200);
-        ws.Cell(row, 16).Style.Fill.BackgroundColor = XLColor.FromArgb(255, 255, 200);
+    // ── Summary row (references daily sheet total row) ────────
+    void WriteSummaryRow(IXLWorksheet ws, int row,
+                         CalculatedRecord first,
+                         string dept, string dailySheet,
+                         int dailyTotalRow, int cols)
+    {
+        string ds = dailySheet.Contains("'") ? dailySheet : dailySheet;
+        // ClosedXML sheet reference — wrap in single quotes if needed
+        string sheetRef = $"'{dailySheet}'";
+
+        ws.Cell(row, 1).Value = first.EmpCode ?? "";
+        ws.Cell(row, 2).Value = $"{first.FullName} Total";
+        ws.Cell(row, 3).Value = dept;
+        // Cols 4-13 blank
+        ws.Cell(row, 14).Value = "";  // DCTC REG HRS — filled via formula below
+        ws.Cell(row, 15).Value = "";  // DCTC OT SYS ADJ — manual
+        // DCTC TOTAL OT references daily sheet total row col P
+        ws.Cell(row, 16).FormulaA1 =
+            $"{sheetRef}!P{dailyTotalRow}+IF(O{row}=\"\",0,O{row})";
+        ws.Cell(row, 17).Value = "";
+        ws.Cell(row, 18).Value = "";
+        // TOTAL REG HRS and TOTAL OT HRS
+        ws.Cell(row, 19).FormulaA1 = $"N{row}+IF(Q{row}=\"\",0,Q{row})";
+        ws.Cell(row, 20).FormulaA1 = $"P{row}+IF(R{row}=\"\",0,R{row})";
+        // OVERALL TOTAL
+        ws.Cell(row, 21).FormulaA1 = $"S{row}+T{row}";
+
+        // DCTC REG HRS — reference daily total row col N
+        ws.Cell(row, 14).FormulaA1 = $"{sheetRef}!N{dailyTotalRow}";
+
+        StyleDataRow(ws, row, cols);
+        // Yellow on manual columns
+        ws.Cell(row, 15).Style.Fill.BackgroundColor = XLColor.FromArgb(255, 255, 200);
         ws.Cell(row, 17).Style.Fill.BackgroundColor = XLColor.FromArgb(255, 255, 200);
+        ws.Cell(row, 18).Style.Fill.BackgroundColor = XLColor.FromArgb(255, 255, 200);
+    }
 
-        // Red text for absent rows
-        if (rec.IsAbsent)
-            ws.Range(row, 1, row, 4).Style.Font.FontColor = XLColor.OrangeRed;
+    // ── Payroll sheet ─────────────────────────────────────────
+    void WritePayrollSheet(IXLWorksheet ws, string dept, string dateLabel,
+                           List<IGrouping<string, CalculatedRecord>> byEmp,
+                           string summarySheetName, string[] headers)
+    {
+        int cols = headers.Length; // 34
 
-        // Orange text for unscheduled
-        if (rec.IsUnscheduled)
-            ws.Cell(row, 10).Style.Font.FontColor = XLColor.OrangeRed;
+        // Row 1: PAYROLL FORM + covered date
+        ws.Range(1, 1, 1, 8).Merge();
+        ws.Cell(1, 1).Value = "PAYROLL FORM";
+        ws.Cell(1, 1).Style.Font.Bold = true;
+        ws.Cell(1, 1).Style.Font.FontSize = 14;
+
+        ws.Range(1, 9, 1, cols).Merge();
+        ws.Cell(1, 9).Value = $"COVERED DATE : {dateLabel}";
+        ws.Cell(1, 9).Style.Font.Bold = true;
+
+        // Row 3: project name
+        ws.Range(3, 1, 3, cols).Merge();
+        ws.Cell(3, 1).Value = $"PROJECT : {dept}";
+        ws.Cell(3, 1).Style.Font.Bold = true;
+
+        // Row 4: column headers
+        for (int c = 0; c < headers.Length; c++)
+        {
+            var cell = ws.Cell(4, c + 1);
+            cell.Value = headers[c];
+            cell.Style.Font.Bold = true;
+            cell.Style.Fill.BackgroundColor = XLColor.FromArgb(47, 117, 181);
+            cell.Style.Font.FontColor = XLColor.White;
+            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            cell.Style.Border.TopBorder = XLBorderStyleValues.Thin;
+            cell.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+            cell.Style.Border.LeftBorder = XLBorderStyleValues.Thin;
+            cell.Style.Border.RightBorder = XLBorderStyleValues.Thin;
+        }
+        ws.Row(4).Height = 30;
+
+        // Data rows — one per employee
+        // REG and OT values come from summary sheet
+        string sumRef = $"'{summarySheetName}'";
+        int dataRow = 5;
+        int empNum = 1;
+
+        // Build a lookup: summary sheet row per emp
+        // Summary data starts at row 4, one row per emp in same order
+        int summaryDataStartRow = 4;
+
+        foreach (var empGroup in byEmp)
+        {
+            var first = empGroup.First();
+            int sRow = summaryDataStartRow + (empNum - 1); // summary row for this emp
+
+            ws.Cell(dataRow, 1).Value = empNum;             // NO.
+            ws.Cell(dataRow, 2).Value = first.FullName ?? ""; // NAME
+            ws.Cell(dataRow, 3).Value = dept;               // DEPARTMENT
+            ws.Cell(dataRow, 4).Value = "";                 // RATE — manual
+            // DAYS = REG / 8
+            ws.Cell(dataRow, 5).FormulaA1 = $"F{dataRow}/8";
+            // REG — from summary TOTAL REG HRS (col S = 19)
+            ws.Cell(dataRow, 6).FormulaA1 = $"{sumRef}!S{sRow}";
+            // OT — from summary TOTAL OT HRS (col T = 20)
+            ws.Cell(dataRow, 7).FormulaA1 = $"{sumRef}!T{sRow}";
+            // TOTAL = REG + OT
+            ws.Cell(dataRow, 8).FormulaA1 = $"F{dataRow}+G{dataRow}";
+            // GROSS = RATE * TOTAL (blank if no rate)
+            ws.Cell(dataRow, 9).FormulaA1 = $"IF(D{dataRow}=\"\",0,D{dataRow}*H{dataRow})";
+            // Cols 10-31: deductions — blank, fill manually
+            // NETPAY = GROSS - SUM(deductions)
+            ws.Cell(dataRow, 32).FormulaA1 = $"I{dataRow}-SUM(J{dataRow}:AE{dataRow})";
+            // SIGNATURE — blank
+            ws.Cell(dataRow, 33).Value = "";
+            // NO. repeated
+            ws.Cell(dataRow, 34).Value = empNum;
+
+            // Row border
+            var range = ws.Range(dataRow, 1, dataRow, cols);
+            range.Style.Border.TopBorder = XLBorderStyleValues.Thin;
+            range.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+            range.Style.Border.LeftBorder = XLBorderStyleValues.Thin;
+            range.Style.Border.RightBorder = XLBorderStyleValues.Thin;
+            range.Style.Fill.BackgroundColor = dataRow % 2 == 0
+                ? XLColor.FromArgb(242, 242, 242)
+                : XLColor.White;
+            range.Style.Font.FontColor = XLColor.Black;
+
+            // Center numeric cols
+            for (int c = 1; c <= cols; c++)
+                ws.Cell(dataRow, c).Style.Alignment.Horizontal =
+                    XLAlignmentHorizontalValues.Center;
+            // Left-align name and dept
+            ws.Cell(dataRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+            ws.Cell(dataRow, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+
+            dataRow++;
+            empNum++;
+        }
+
+        // Finalize payroll sheet
+        ws.Columns().AdjustToContents();
+        ws.Column(2).Width = Math.Max(ws.Column(2).Width, 24); // NAME
+        ws.Column(3).Width = Math.Max(ws.Column(3).Width, 22); // DEPT
+        ws.SheetView.FreezeRows(4);
+        ws.SheetView.FreezeColumns(2);
+    }
+
+    // ── Row styling helper ────────────────────────────────────
+    void StyleDataRow(IXLWorksheet ws, int row, int cols)
+    {
+        var range = ws.Range(row, 1, row, cols);
+        range.Style.Fill.BackgroundColor = XLColor.White;
+        range.Style.Font.FontColor = XLColor.Black;
+        range.Style.Border.BottomBorder = XLBorderStyleValues.Hair;
+        range.Style.Border.BottomBorderColor = XLColor.LightGray;
+        for (int c = 4; c <= cols; c++)
+            ws.Cell(row, c).Style.Alignment.Horizontal =
+                XLAlignmentHorizontalValues.Center;
+        // Yellow on manual adj columns
+        ws.Cell(row, 15).Style.Fill.BackgroundColor = XLColor.FromArgb(255, 255, 200);
+        ws.Cell(row, 17).Style.Fill.BackgroundColor = XLColor.FromArgb(255, 255, 200);
+        ws.Cell(row, 18).Style.Fill.BackgroundColor = XLColor.FromArgb(255, 255, 200);
     }
 
     void FinalizeSheet(IXLWorksheet ws, int cols)
     {
         ws.Columns().AdjustToContents();
         ws.Column(1).Width = Math.Max(ws.Column(1).Width, 13);
-        ws.Column(2).Width = Math.Max(ws.Column(2).Width, 26);
+        ws.Column(2).Width = Math.Max(ws.Column(2).Width, 28);
         ws.Column(3).Width = Math.Max(ws.Column(3).Width, 22);
         for (int c = 9; c <= cols; c++)
             ws.Column(c).Width = Math.Max(ws.Column(c).Width, 14);
-        ws.SheetView.FreezeRows(6);
+        ws.SheetView.FreezeRows(3);
         ws.SheetView.FreezeColumns(2);
     }
 
-    // ── Helpers ──────────────────────────────────────────────
+    string SanitizeName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "Sheet";
+        name = name.Length > 31 ? name.Substring(0, 31) : name;
+        foreach (var c in new[] { ':', '\\', '/', '?', '*', '[', ']' })
+            name = name.Replace(c.ToString(), "");
+        return string.IsNullOrWhiteSpace(name) ? "Sheet" : name.Trim();
+    }
+
     Label MakeLabel(string text, int y, int x = 16) => new Label
     {
         Text = text,
